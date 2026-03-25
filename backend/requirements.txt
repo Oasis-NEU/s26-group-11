@@ -1,0 +1,36 @@
+# Web framework
+flask==3.1.0
+flask-cors==5.0.0
+
+# Database
+flask-sqlalchemy==3.1.1
+psycopg2-binary==2.9.10
+flask-migrate==4.1.0
+
+# Auth
+flask-bcrypt==1.0.1
+flask-jwt-extended==4.7.1
+authlib==1.4.1
+
+# Redis caching
+redis==5.2.1
+flask-caching==2.3.1
+
+# Background jobs
+apscheduler==3.11.0
+
+# Data collection
+praw==7.8.1
+newsapi-python==0.2.7
+yfinance==0.2.55
+requests==2.32.3
+
+# Sentiment analysis
+vaderSentiment==3.3.2
+transformers==4.50.3
+torch==2.6.0
+
+# Utilities
+python-dotenv==1.0.1
+marshmallow==3.26.1
+gunicorn==23.0.0

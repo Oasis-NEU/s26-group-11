@@ -1,12 +1,126 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BarChart2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, ExternalLink } from 'lucide-react';
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from 'recharts';
+import { getStockDetail, getStockMentions, type Mention } from '../api/stocks';
 
 const cardStyle = { borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' };
 const cardHover = 'hover:border-[var(--border-hover)] hover:bg-[var(--bg-elevated)]';
 
+function sentimentColor(score: number | null) {
+  if (score === null) return 'var(--text-muted)';
+  return score > 0.1 ? '#22c55e' : score < -0.1 ? '#ef4444' : '#94a3b8';
+}
+
+function sentimentLabel(score: number | null) {
+  if (score === null) return '—';
+  if (score > 0.1) return 'Bullish';
+  if (score < -0.1) return 'Bearish';
+  return 'Neutral';
+}
+
+function SentimentBar({ score }: { score: number | null }) {
+  const pct = score !== null ? Math.round((score + 1) * 50) : null;
+  return (
+    <div className="flex items-center gap-3">
+      <div className="h-1.5 flex-1 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+        {pct !== null && (
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${pct}%`, backgroundColor: sentimentColor(score) }}
+          />
+        )}
+      </div>
+      <span className="text-xs tabular-nums font-medium w-8 text-right" style={{ color: sentimentColor(score) }}>
+        {pct !== null ? `${pct}%` : '—'}
+      </span>
+    </div>
+  );
+}
+
+const SOURCE_TABS = ['all', 'reddit', 'news'] as const;
+type SourceTab = typeof SOURCE_TABS[number];
+
+function SourceBadge({ source }: { source: string }) {
+  const colors: Record<string, string> = {
+    reddit: '#ff4500',
+    twitter: '#1d9bf0',
+    news: '#8b5cf6',
+  };
+  return (
+    <span
+      className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+      style={{ backgroundColor: `${colors[source] ?? '#888'}22`, color: colors[source] ?? '#888' }}
+    >
+      {source}
+    </span>
+  );
+}
+
+function MentionCard({ mention }: { mention: Mention }) {
+  const date = new Date(mention.published_at).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric',
+  });
+  return (
+    <div className="rounded-lg border p-4 space-y-2 transition-colors" style={cardStyle}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <SourceBadge source={mention.source} />
+          {mention.subreddit && (
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>r/{mention.subreddit}</span>
+          )}
+          {mention.news_source && (
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{mention.news_source}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)' }}>{date}</span>
+          {mention.url && (
+            <a href={mention.url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-3.5 w-3.5" style={{ color: 'var(--text-muted)' }} />
+            </a>
+          )}
+        </div>
+      </div>
+      <p className="text-sm line-clamp-3" style={{ color: 'var(--text-secondary)' }}>{mention.text}</p>
+      <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+        {mention.sentiment_label && (
+          <span style={{ color: sentimentColor(mention.sentiment_score) }}>
+            {mention.sentiment_label}
+          </span>
+        )}
+        <span>Credibility {mention.credibility_score}</span>
+        {mention.upvotes > 0 && <span>↑ {mention.upvotes}</span>}
+      </div>
+    </div>
+  );
+}
+
 export function StockDetail() {
   const { symbol } = useParams<{ symbol: string }>();
+  const [sourceTab, setSourceTab] = useState<SourceTab>('all');
+
+  const { data: stock, isLoading: stockLoading, isError: stockError } = useQuery({
+    queryKey: ['stock', symbol],
+    queryFn: () => getStockDetail(symbol!),
+    enabled: !!symbol,
+  });
+
+  const { data: mentions, isLoading: mentionsLoading } = useQuery({
+    queryKey: ['mentions', symbol, sourceTab],
+    queryFn: () => getStockMentions(symbol!, sourceTab === 'all' ? undefined : sourceTab),
+    enabled: !!symbol,
+  });
+
+  const chartData = stock?.history.map((h) => ({
+    date: new Date(h.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    overall: h.overall !== null ? Math.round((h.overall + 1) * 50) : null,
+    news: h.news !== null ? Math.round((h.news + 1) * 50) : null,
+  })) ?? [];
 
   return (
     <motion.div
@@ -24,31 +138,136 @@ export function StockDetail() {
         Back
       </Link>
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-          {symbol ?? 'Stock'}
-        </h1>
-        <p className="mt-1 text-sm" style={{ color: 'var(--text-muted)' }}>Detail view — coming soon</p>
-      </div>
-
-      <div className={`group relative overflow-hidden rounded-lg border p-16 text-center transition-colors duration-200 ${cardHover}`} style={cardStyle}>
-        <svg className="absolute inset-0 m-auto h-48 w-full max-w-md opacity-[0.15]" viewBox="0 0 300 120" preserveAspectRatio="xMidYMid slice">
-          <motion.path d="M 0 80 Q 50 60, 100 80 T 200 80 T 300 80" fill="none" stroke="var(--graphic-stroke)" strokeWidth="2" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, ease: 'easeOut' }} />
-          <motion.path d="M 0 80 Q 50 60, 100 80 T 200 80 T 300 80" fill="none" stroke="var(--graphic-stroke)" strokeWidth="1" strokeDasharray="8 4" initial={{ strokeDashoffset: 0 }} animate={{ strokeDashoffset: -24 }} transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }} />
-        </svg>
-        <BarChart2 className="relative mx-auto h-12 w-12 transition-colors duration-200 group-hover:opacity-70" strokeWidth={1} style={{ color: 'var(--text-muted)' }} />
-        <p className="relative mt-4 text-sm transition-colors duration-200 group-hover:opacity-80" style={{ color: 'var(--text-muted)' }}>Sentiment chart</p>
-      </div>
-
-      <div className={`group relative overflow-hidden rounded-lg border p-16 text-center transition-colors duration-200 ${cardHover}`} style={cardStyle}>
-        <div className="absolute left-8 top-1/2 flex -translate-y-1/2 gap-2 opacity-20">
-          {[0.6, 0.4, 0.8, 0.5].map((w, i) => (
-            <motion.div key={i} className="h-12 rounded opacity-40" style={{ width: `${w * 48}px`, backgroundColor: 'var(--text-primary)' }} animate={{ opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 2, repeat: Infinity, delay: i * 0.2 }} />
-          ))}
+      {/* Header */}
+      {stockLoading && (
+        <div className="space-y-2 animate-pulse">
+          <div className="h-7 w-32 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
+          <div className="h-4 w-48 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
         </div>
-        <MessageSquare className="relative mx-auto h-12 w-12 transition-colors duration-200 group-hover:opacity-70" strokeWidth={1} style={{ color: 'var(--text-muted)' }} />
-        <p className="relative mt-4 text-sm transition-colors duration-200 group-hover:opacity-80" style={{ color: 'var(--text-muted)' }}>Mentions</p>
-      </div>
+      )}
+
+      {stockError && (
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+          Could not load {symbol} — check the backend.
+        </p>
+      )}
+
+      {stock && (
+        <>
+          {/* Title + price */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                {stock.symbol}
+              </h1>
+              {stock.name && (
+                <p className="mt-0.5 text-sm" style={{ color: 'var(--text-muted)' }}>{stock.name}</p>
+              )}
+            </div>
+            {stock.price != null && (
+              <div className="text-right">
+                <div className="text-xl font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>
+                  ${stock.price.toFixed(2)}
+                </div>
+                {stock.change_pct != null && (
+                  <div className="flex items-center justify-end gap-0.5 text-sm font-medium" style={{ color: stock.change_pct >= 0 ? '#22c55e' : '#ef4444' }}>
+                    {stock.change_pct >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                    {Math.abs(stock.change_pct).toFixed(2)}%
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Sentiment breakdown */}
+          <div className={`rounded-lg border p-5 space-y-4 transition-colors ${cardHover}`} style={cardStyle}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Sentiment</h2>
+              <span className="text-sm font-semibold" style={{ color: sentimentColor(stock.sentiment.overall) }}>
+                {sentimentLabel(stock.sentiment.overall)}
+              </span>
+            </div>
+            <div className="space-y-3">
+              {[
+                { label: 'Overall', score: stock.sentiment.overall, count: stock.sentiment.reddit_count + stock.sentiment.news_count },
+                { label: 'Reddit', score: stock.sentiment.reddit, count: stock.sentiment.reddit_count },
+                { label: 'News', score: stock.sentiment.news, count: stock.sentiment.news_count },
+              ].map(({ label, score, count }) => (
+                <div key={label} className="space-y-1">
+                  <div className="flex justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
+                    <span>{label}</span>
+                    <span>{count} mention{count !== 1 ? 's' : ''}</span>
+                  </div>
+                  <SentimentBar score={score} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 7-day chart */}
+          {chartData.length > 0 && (
+            <div className={`rounded-lg border p-5 transition-colors ${cardHover}`} style={cardStyle}>
+              <h2 className="mb-4 text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                7-Day Sentiment
+              </h2>
+              <ResponsiveContainer width="100%" height={160}>
+                <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 0, left: -24 }}>
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+                    labelStyle={{ color: 'var(--text-muted)' }}
+                  />
+                  <Line type="monotone" dataKey="overall" stroke="#8b5cf6" strokeWidth={2} dot={false} name="Overall" connectNulls />
+                  <Line type="monotone" dataKey="news" stroke="#06b6d4" strokeWidth={1.5} dot={false} name="News" connectNulls strokeDasharray="4 2" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* Mentions */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Mentions</h2>
+              <div className="flex gap-1">
+                {SOURCE_TABS.map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setSourceTab(tab)}
+                    className="rounded px-2.5 py-1 text-xs font-medium capitalize transition-colors"
+                    style={{
+                      backgroundColor: sourceTab === tab ? 'var(--bg-elevated)' : 'transparent',
+                      color: sourceTab === tab ? 'var(--text-primary)' : 'var(--text-muted)',
+                      border: '1px solid',
+                      borderColor: sourceTab === tab ? 'var(--border-hover)' : 'transparent',
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mentionsLoading && (
+              <div className="space-y-2 animate-pulse">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-24 rounded-lg" style={{ backgroundColor: 'var(--bg-surface)' }} />
+                ))}
+              </div>
+            )}
+
+            {mentions && mentions.length === 0 && (
+              <p className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                No high-quality mentions found in the last 7 days.
+              </p>
+            )}
+
+            {mentions && mentions.map((m: Mention) => (
+              <MentionCard key={m.id} mention={m} />
+            ))}
+          </div>
+        </>
+      )}
     </motion.div>
   );
 }
