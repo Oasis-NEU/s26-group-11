@@ -52,7 +52,7 @@ def trending():
     results = []
     for ticker, mention_count in rows:
         price_data = _get_price(ticker)
-        results.append({"ticker": ticker, "mentions": mention_count, **price_data})
+        results.append({"ticker": ticker, "symbol": ticker, "mentions": mention_count, "sentiment_score": None, **price_data})
     return jsonify(results)
 
 
@@ -93,9 +93,11 @@ def shifters():
         price_data = _get_price(ticker)
         results.append({
             "ticker": ticker,
+            "symbol": ticker,
             "recent_mentions": recent_cnt,
             "prior_mentions": prior_cnt,
             "change": recent_cnt - prior_cnt,
+            "sentiment_delta_24h": 0,
             **price_data,
         })
     return jsonify(results)

@@ -4,7 +4,7 @@ from app.extensions import db
 from app.db.models import Mention, SourceType
 from app.services.news.clients.finnhub import fetch_company_news
 from app.services.news.schemas import NewsMentionDTO
-from app.services.news.whitelist import score_url
+from app.services.news.whitelist import score_source, score_url
 
 
 def _finnhub_to_dtos(raw_articles: list[dict], ticker: str) -> list[NewsMentionDTO]:
@@ -14,7 +14,7 @@ def _finnhub_to_dtos(raw_articles: list[dict], ticker: str) -> list[NewsMentionD
         url = article.get("url", "")
         if not url:
             continue
-        scored = score_url(url)
+        scored = score_url(url) or score_source(article.get("source", ""))
         if scored is None:
             continue
         domain, credibility = scored
