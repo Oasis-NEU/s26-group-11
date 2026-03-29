@@ -13,14 +13,19 @@ stocks_bp = Blueprint("stocks", __name__)
 
 def _mention_to_dict(m: Mention) -> dict:
     return {
-        "ticker": m.ticker,
-        "title": m.title,
-        "summary": m.summary,
-        "url": m.url,
-        "source_domain": m.source_domain,
-        "published_at": m.published_at.isoformat(),
-        "credibility_score": m.credibility_score,
+        "id": m.id,
         "source": m.source_type,
+        "text": m.title,
+        "url": m.url,
+        "author": m.source_domain,
+        "author_verified": False,
+        "upvotes": 0,
+        "credibility_score": m.credibility_score,
+        "sentiment_score": None,
+        "sentiment_label": None,
+        "news_source": m.source_domain if m.source_type == "news" else None,
+        "subreddit": None,
+        "published_at": m.published_at.isoformat(),
     }
 
 
@@ -105,20 +110,45 @@ def shifters():
 
 @stocks_bp.route("/search")
 def search():
-    q = (request.args.get("q") or "").strip()
+    q = (request.args.get("q") or "").strip().upper()
     if len(q) < 1:
         return jsonify([])
+
+    # First: search DB for known tickers (fast)
+    from app.db.models import Stock
+    db_results = (
+        Stock.query.filter(Stock.ticker.like(f"{q}%"))
+        .order_by(Stock.ticker)
+        .limit(8)
+        .all()
+    )
+    if db_results:
+        return jsonify([{"symbol": s.ticker, "name": s.name} for s in db_results])
+
+    # Fallback: yfinance for unknown tickers
     try:
-        ticker = yf.Ticker(q)
-        info = ticker.info
-        if info.get("symbol"):
-            return jsonify([{
-                "ticker": info["symbol"],
-                "name": info.get("longName") or info.get("shortName") or info["symbol"],
-            }])
+        info = yf.Ticker(q).fast_info
+        if info.last_price:
+            return jsonify([{"symbol": q, "name": q}])
     except Exception:
         pass
     return jsonify([])
+
+
+@stocks_bp.route("/<ticker>/mentions")
+def stock_mentions(ticker: str):
+    ticker = ticker.upper()
+    source = request.args.get("source")
+    days = request.args.get("days", 7, type=int)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    q = Mention.query.filter(
+        Mention.ticker == ticker,
+        Mention.published_at >= cutoff,
+    )
+    if source:
+        q = q.filter(Mention.source_type == source)
+    mentions = q.order_by(Mention.published_at.desc()).limit(20).all()
+    return jsonify([_mention_to_dict(m) for m in mentions])
 
 
 @stocks_bp.route("/<ticker>")
@@ -141,7 +171,7 @@ def stock_detail(ticker: str):
     mentions = get_news_for_ticker(ticker, days=7, limit=10)
     price_data = _get_price(ticker)
 
-    # 7-day daily mention counts
+    # 7-day daily history in shape StockDetail.history expects
     history = []
     for days_ago in range(6, -1, -1):
         day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days_ago)
@@ -151,11 +181,32 @@ def stock_detail(ticker: str):
             Mention.published_at >= day_start,
             Mention.published_at < day_end,
         ).count()
-        history.append({"date": day_start.date().isoformat(), "mentions": count})
+        history.append({
+            "timestamp": day_start.isoformat(),
+            "overall": None,
+            "reddit": None,
+            "twitter": None,
+            "news": None,
+            "mentions": count,
+        })
 
     return jsonify({
         "ticker": ticker,
+        "symbol": ticker,
+        "name": None,
         **price_data,
+        "market_cap": None,
+        "volume": None,
+        "exchange": None,
+        "sentiment": {
+            "overall": None,
+            "reddit": None,
+            "twitter": None,
+            "news": None,
+            "reddit_count": 0,
+            "twitter_count": 0,
+            "news_count": len(mentions),
+        },
         "mention_count": len(mentions),
         "history": history,
         "mentions": [_mention_to_dict(m) for m in mentions],
