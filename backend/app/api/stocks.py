@@ -29,17 +29,48 @@ def _mention_to_dict(m: Mention) -> dict:
     }
 
 
+def _fmt(v, decimals=2):
+    try:
+        return round(float(v), decimals) if v is not None else None
+    except Exception:
+        return None
+
+
 def _get_price(ticker: str) -> dict:
     try:
         info = yf.Ticker(ticker).fast_info
         return {
-            "price": round(info.last_price, 2) if info.last_price else None,
-            "change_pct": round(
-                (info.last_price - info.previous_close) / info.previous_close * 100, 2
+            "price": _fmt(info.last_price),
+            "change_pct": _fmt(
+                (info.last_price - info.previous_close) / info.previous_close * 100
             ) if info.last_price and info.previous_close else None,
         }
     except Exception:
         return {"price": None, "change_pct": None}
+
+
+def _get_fundamentals(ticker: str) -> dict:
+    try:
+        t = yf.Ticker(ticker)
+        fi = t.fast_info
+        info = t.info
+        return {
+            "open": _fmt(fi.open),
+            "day_high": _fmt(fi.day_high),
+            "day_low": _fmt(fi.day_low),
+            "volume": int(fi.last_volume) if fi.last_volume else None,
+            "avg_volume": int(fi.three_month_average_volume) if fi.three_month_average_volume else None,
+            "market_cap": int(fi.market_cap) if fi.market_cap else None,
+            "pe_ratio": _fmt(info.get("trailingPE")),
+            "eps": _fmt(info.get("trailingEps")),
+            "beta": _fmt(info.get("beta")),
+            "dividend_yield": _fmt((info.get("dividendYield") or 0) * 100),
+            "fifty_two_week_high": _fmt(fi.year_high),
+            "fifty_two_week_low": _fmt(fi.year_low),
+        }
+    except Exception as e:
+        print(f"[fundamentals] error for {ticker}: {e}")
+        return {}
 
 
 @stocks_bp.route("/trending")
@@ -222,11 +253,14 @@ def stock_detail(ticker: str):
             "mentions": count,
         })
 
+    fundamentals = _get_fundamentals(ticker)
+
     return jsonify({
         "ticker": ticker,
         "symbol": ticker,
         "name": None,
         **price_data,
+        "fundamentals": fundamentals,
         "market_cap": None,
         "volume": None,
         "exchange": None,

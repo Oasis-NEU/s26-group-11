@@ -7,7 +7,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area,
 } from 'recharts';
-import { getStockDetail, getStockMentions, getStockChart, type Mention, type ChartPoint } from '../api/stocks';
+import { getStockDetail, getStockMentions, getStockChart, type Mention, type ChartPoint, type Fundamentals } from '../api/stocks';
 
 const cardStyle = { borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' };
 const cardHover = 'hover:border-[var(--border-hover)] hover:bg-[var(--bg-elevated)]';
@@ -39,6 +39,52 @@ function SentimentBar({ score }: { score: number | null }) {
       <span className="text-xs tabular-nums font-medium w-8 text-right" style={{ color: sentimentColor(score) }}>
         {pct !== null ? `${pct}%` : '—'}
       </span>
+    </div>
+  );
+}
+
+function fmtVolume(v: number | null) {
+  if (v == null) return '—';
+  if (v >= 1e9) return `${(v / 1e9).toFixed(2)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
+  return v.toString();
+}
+
+function fmtMarketCap(v: number | null) {
+  if (v == null) return '—';
+  if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}T`;
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(0)}M`;
+  return `$${v}`;
+}
+
+function FundamentalsGrid({ f }: { f: Fundamentals }) {
+  const rows = [
+    ['Open',    f.open != null ? `$${f.open.toFixed(2)}` : '—'],
+    ['High',    f.day_high != null ? `$${f.day_high.toFixed(2)}` : '—'],
+    ['Low',     f.day_low != null ? `$${f.day_low.toFixed(2)}` : '—'],
+    ['Vol',     fmtVolume(f.volume)],
+    ['Avg Vol', fmtVolume(f.avg_volume)],
+    ['Mkt Cap', fmtMarketCap(f.market_cap)],
+    ['P/E',     f.pe_ratio != null ? f.pe_ratio.toFixed(2) : '—'],
+    ['EPS',     f.eps != null ? `$${f.eps.toFixed(2)}` : '—'],
+    ['Beta',    f.beta != null ? f.beta.toFixed(2) : '—'],
+    ['Yield',   f.dividend_yield != null && f.dividend_yield > 0 ? `${f.dividend_yield.toFixed(2)}%` : '—'],
+    ['52W H',   f.fifty_two_week_high != null ? `$${f.fifty_two_week_high.toFixed(2)}` : '—'],
+    ['52W L',   f.fifty_two_week_low != null ? `$${f.fifty_two_week_low.toFixed(2)}` : '—'],
+  ];
+
+  return (
+    <div className="rounded-lg border p-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+      <div className="grid grid-cols-3 divide-x divide-y" style={{ borderColor: 'var(--border)' }}>
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between px-3 py-2 gap-2">
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
+            <span className="text-xs font-semibold tabular-nums" style={{ color: 'var(--text-primary)' }}>{value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -284,6 +330,9 @@ export function StockDetail() {
 
           {/* Price chart */}
           <PriceChart symbol={stock.symbol} isUp={(stock.change_pct ?? 0) >= 0} />
+
+          {/* Fundamentals */}
+          {stock.fundamentals && <FundamentalsGrid f={stock.fundamentals} />}
 
           {/* Sentiment breakdown */}
           <div className={`rounded-lg border p-5 space-y-4 transition-colors ${cardHover}`} style={cardStyle}>
