@@ -18,6 +18,35 @@ class Stock(db.Model):
     name = db.Column(db.String(255), nullable=True)
 
 
+class User(db.Model):
+    __tablename__ = "users"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    watchlist = db.relationship("WatchlistItem", back_populates="user", lazy="dynamic")
+
+
+class WatchlistItem(db.Model):
+    __tablename__ = "watchlist_items"
+    __table_args__ = (db.UniqueConstraint("user_id", "ticker", name="uq_watchlist_user_ticker"),)
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    ticker = db.Column(db.String(10), nullable=False)
+    added_at = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+    user = db.relationship("User", back_populates="watchlist")
+
+
 class Mention(db.Model):
     __tablename__ = "mentions"
     __table_args__ = (db.UniqueConstraint("url", name="uq_mentions_url"),)
