@@ -135,6 +135,38 @@ def search():
     return jsonify([])
 
 
+CHART_PERIODS = {
+    "1d":  ("1d",  "5m"),
+    "1w":  ("5d",  "1h"),
+    "1m":  ("1mo", "1d"),
+    "3m":  ("3mo", "1d"),
+    "1y":  ("1y",  "1wk"),
+}
+
+
+@stocks_bp.route("/<ticker>/chart")
+def stock_chart(ticker: str):
+    period = request.args.get("period", "1m")
+    yf_period, interval = CHART_PERIODS.get(period, ("1mo", "1d"))
+    try:
+        hist = yf.Ticker(ticker.upper()).history(period=yf_period, interval=interval)
+        if hist.empty:
+            return jsonify([])
+        data = []
+        for ts, row in hist.iterrows():
+            data.append({
+                "time": ts.isoformat(),
+                "close": round(float(row["Close"]), 2),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "volume": int(row["Volume"]),
+            })
+        return jsonify(data)
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
 @stocks_bp.route("/<ticker>/mentions")
 def stock_mentions(ticker: str):
     ticker = ticker.upper()

@@ -5,8 +5,9 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, ArrowUpRight, ArrowDownRight, ExternalLink } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  AreaChart, Area,
 } from 'recharts';
-import { getStockDetail, getStockMentions, type Mention } from '../api/stocks';
+import { getStockDetail, getStockMentions, getStockChart, type Mention, type ChartPoint } from '../api/stocks';
 
 const cardStyle = { borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' };
 const cardHover = 'hover:border-[var(--border-hover)] hover:bg-[var(--bg-elevated)]';
@@ -38,6 +39,108 @@ function SentimentBar({ score }: { score: number | null }) {
       <span className="text-xs tabular-nums font-medium w-8 text-right" style={{ color: sentimentColor(score) }}>
         {pct !== null ? `${pct}%` : '—'}
       </span>
+    </div>
+  );
+}
+
+const CHART_PERIODS = ['1D', '1W', '1M', '3M', '1Y'] as const;
+type ChartPeriod = typeof CHART_PERIODS[number];
+
+function formatChartTime(isoTime: string, period: ChartPeriod) {
+  const d = new Date(isoTime);
+  if (period === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  if (period === '1Y') return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function PriceChart({ symbol, isUp }: { symbol: string; isUp: boolean }) {
+  const [period, setPeriod] = useState<ChartPeriod>('1M');
+  const color = isUp ? '#22c55e' : '#ef4444';
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['chart', symbol, period],
+    queryFn: () => getStockChart(symbol, period.toLowerCase()),
+    staleTime: 5 * 60_000,
+  });
+
+  const chartData = (data ?? []).map((p: ChartPoint) => ({
+    time: formatChartTime(p.time, period),
+    price: p.close,
+  }));
+
+  const minPrice = chartData.length ? Math.min(...chartData.map(d => d.price)) * 0.999 : 0;
+  const maxPrice = chartData.length ? Math.max(...chartData.map(d => d.price)) * 1.001 : 0;
+
+  return (
+    <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Price Chart</h2>
+        <div className="flex gap-1">
+          {CHART_PERIODS.map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className="rounded px-2 py-0.5 text-xs font-medium transition-colors"
+              style={{
+                backgroundColor: period === p ? 'var(--bg-elevated)' : 'transparent',
+                color: period === p ? 'var(--text-primary)' : 'var(--text-muted)',
+                border: '1px solid',
+                borderColor: period === p ? 'var(--border-hover)' : 'transparent',
+              }}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {isLoading && (
+        <div className="h-48 animate-pulse rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
+      )}
+
+      {!isLoading && chartData.length > 0 && (
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -28 }}>
+            <defs>
+              <linearGradient id={`grad-${symbol}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={color} stopOpacity={0.2} />
+                <stop offset="95%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <XAxis
+              dataKey="time"
+              tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              domain={[minPrice, maxPrice]}
+              tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(v) => `$${v.toFixed(0)}`}
+            />
+            <Tooltip
+              contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+              labelStyle={{ color: 'var(--text-muted)' }}
+              formatter={(v: number) => [`$${v.toFixed(2)}`, 'Price']}
+            />
+            <Area
+              type="monotone"
+              dataKey="price"
+              stroke={color}
+              strokeWidth={1.5}
+              fill={`url(#grad-${symbol})`}
+              dot={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+
+      {!isLoading && chartData.length === 0 && (
+        <p className="py-12 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No price data available.</p>
+      )}
     </div>
   );
 }
@@ -178,6 +281,9 @@ export function StockDetail() {
               </div>
             )}
           </div>
+
+          {/* Price chart */}
+          <PriceChart symbol={stock.symbol} isUp={(stock.change_pct ?? 0) >= 0} />
 
           {/* Sentiment breakdown */}
           <div className={`rounded-lg border p-5 space-y-4 transition-colors ${cardHover}`} style={cardStyle}>

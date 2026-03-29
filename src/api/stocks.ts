@@ -84,3 +84,15 @@ export const getStockMentions = (symbol: string, source?: string) =>
   client
     .get<Mention[]>(`/api/stocks/${symbol}/mentions`, { params: source ? { source } : {} })
     .then((r) => r.data);
+
+export interface ChartPoint {
+  time: string;
+  close: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: number;
+}
+
+export const getStockChart = (symbol: string, period: string) =>
+  client.get<ChartPoint[]>(`/api/stocks/${symbol}/chart`, { params: { period } }).then((r) => r.data);
