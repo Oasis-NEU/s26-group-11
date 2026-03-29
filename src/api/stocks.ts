@@ -32,6 +32,21 @@ export interface SentimentHistory {
   news: number | null;
 }
 
+export interface Fundamentals {
+  open: number | null;
+  day_high: number | null;
+  day_low: number | null;
+  volume: number | null;
+  avg_volume: number | null;
+  market_cap: number | null;
+  pe_ratio: number | null;
+  eps: number | null;
+  beta: number | null;
+  dividend_yield: number | null;
+  fifty_two_week_high: number | null;
+  fifty_two_week_low: number | null;
+}
+
 export interface StockDetail {
   symbol: string;
   name: string | null;
@@ -40,6 +55,7 @@ export interface StockDetail {
   market_cap: number | null;
   volume: number | null;
   exchange: string | null;
+  fundamentals: Fundamentals;
   sentiment: {
     overall: number | null;
     reddit: number | null;
