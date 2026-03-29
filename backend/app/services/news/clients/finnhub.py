@@ -19,10 +19,8 @@ def fetch_company_news(
     source, summary, url.
     """
     if not config.FINNHUB_API_KEY:
-        raise RuntimeError(
-            "FINNHUB_API_KEY is not set. "
-            "Add it to backend/.env or export it as an environment variable."
-        )
+        print("[finnhub] FINNHUB_API_KEY not set — skipping fetch")
+        return []
 
     params = {
         "symbol": symbol.upper(),

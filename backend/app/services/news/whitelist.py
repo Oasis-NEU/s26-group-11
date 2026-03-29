@@ -68,9 +68,37 @@ def is_whitelisted(url: str) -> bool:
     return get_tier(domain) is not None
 
 
+# Map Finnhub source names to whitelisted domains
+FINNHUB_SOURCE_MAP: dict[str, str] = {
+    "Bloomberg": "bloomberg.com",
+    "Reuters": "reuters.com",
+    "The Wall Street Journal": "wsj.com",
+    "WSJ": "wsj.com",
+    "Financial Times": "ft.com",
+    "CNBC": "cnbc.com",
+    "MarketWatch": "marketwatch.com",
+    "Barron's": "barrons.com",
+    "Yahoo": "yahoo.com",
+    "Yahoo Finance": "finance.yahoo.com",
+    "Business Insider": "businessinsider.com",
+    "Forbes": "forbes.com",
+}
+
+
 def score_url(url: str) -> tuple[str, int] | None:
     """Return (domain, credibility_score) if whitelisted, else None."""
     domain = normalize_domain(url)
+    cred = credibility_for_domain(domain)
+    if cred is None:
+        return None
+    return domain, cred
+
+
+def score_source(source_name: str) -> tuple[str, int] | None:
+    """Return (domain, credibility_score) for a Finnhub source name, else None."""
+    domain = FINNHUB_SOURCE_MAP.get(source_name)
+    if not domain:
+        return None
     cred = credibility_for_domain(domain)
     if cred is None:
         return None

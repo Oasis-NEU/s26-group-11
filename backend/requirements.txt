@@ -1,5 +1,21 @@
+# Web framework
 flask
 flask-cors
 flask-sqlalchemy
+flask-migrate
+flask-bcrypt
+flask-jwt-extended
+
+# Database
+psycopg2-binary
+
+# Data collection
 requests
+yfinance
+
+# Sentiment analysis
+vaderSentiment
+
+# Utilities
 python-dotenv
+gunicorn

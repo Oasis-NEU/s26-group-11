@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Frontend (Vite)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "Backend (Flask)",
+      "runtimeExecutable": "backend/.venv/bin/python3",
+      "runtimeArgs": ["backend/run.py"],
+      "port": 5001
+    }
+  ]
+}
