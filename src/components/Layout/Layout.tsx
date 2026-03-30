@@ -7,7 +7,7 @@ export function Layout() {
     <div className="relative min-h-screen" style={{ backgroundColor: 'var(--bg-page)' }}>
       <PageBackground />
       <Navbar />
-      <main className="relative z-10 mx-auto max-w-screen-xl px-5 py-6">
+      <main className="mx-auto max-w-screen-xl px-5 py-8">
         <Outlet />
       </main>
     </div>
