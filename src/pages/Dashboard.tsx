@@ -76,35 +76,36 @@ function FeedCard({ mention, index }: { mention: Mention; index: number }) {
       : 'Low credibility';
 
   return (
-    <article
-      className="border-b py-5 group"
-      style={{ borderColor: 'var(--border)' }}
-    >
-      <a href={mention.url ?? '#'} target="_blank" rel="noopener noreferrer" className="block">
-        {/* Source row */}
-        <div className="flex items-center gap-2 mb-2">
-          <span
-            className="text-[10px] font-bold tracking-[0.1em] uppercase"
-            style={{ color: 'var(--text-muted)', ...MONO }}
+    <article className="border-b py-5" style={{ borderColor: 'var(--border)' }}>
+      {/* Source row */}
+      <div className="flex items-center gap-2 mb-2">
+        <span
+          className="text-[10px] font-bold tracking-[0.1em] uppercase"
+          style={{ color: 'var(--text-muted)', ...MONO }}
+        >
+          {sourceLabel}
+        </span>
+        {ticker && (
+          <Link
+            to={`/app/stock/${ticker}`}
+            className="text-[10px] font-bold px-1.5 py-px border transition-colors hover:bg-[var(--bg-elevated)]"
+            style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', ...MONO }}
           >
-            {sourceLabel}
-          </span>
-          {ticker && (
-            <Link
-              to={`/app/stock/${ticker}`}
-              onClick={e => e.stopPropagation()}
-              className="text-[10px] font-bold px-1.5 py-px border transition-colors hover:bg-[var(--bg-elevated)]"
-              style={{ borderColor: 'var(--border-strong)', color: 'var(--text-secondary)', ...MONO }}
-            >
-              {ticker}
-            </Link>
-          )}
-          <span className="ml-auto text-[11px]" style={{ color: 'var(--text-muted)', ...MONO }}>
-            {timeAgo(mention.published_at)}
-          </span>
-        </div>
+            {ticker}
+          </Link>
+        )}
+        <span className="ml-auto text-[11px]" style={{ color: 'var(--text-muted)', ...MONO }}>
+          {timeAgo(mention.published_at)}
+        </span>
+      </div>
 
-        {/* Headline */}
+      {/* Headline */}
+      <a
+        href={mention.url ?? '#'}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group block"
+      >
         <h3
           className={`font-bold leading-snug group-hover:underline underline-offset-2 decoration-1 ${
             isHero ? 'text-[1.25rem]' : 'text-[0.9375rem]'
@@ -113,12 +114,12 @@ function FeedCard({ mention, index }: { mention: Mention; index: number }) {
         >
           {mention.text}
         </h3>
-
-        {/* Credibility */}
-        <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: credColor, ...MONO }}>
-          {credLabel}
-        </div>
       </a>
+
+      {/* Credibility */}
+      <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: credColor, ...MONO }}>
+        {credLabel}
+      </div>
     </article>
   );
 }
