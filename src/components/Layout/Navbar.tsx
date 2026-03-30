@@ -6,43 +6,59 @@ export function Navbar() {
   const location = useLocation();
 
   return (
-    <header className="sticky top-0 z-40 border-b" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-page)' }}>
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
-        <Link
-          to="/"
-          className="font-semibold tracking-tight transition-opacity duration-200 hover:opacity-80 active:opacity-60"
-          style={{ color: 'var(--text-primary)' }}
-        >
-          SentimentSignal
+    <header
+      className="sticky top-0 z-40 border-b backdrop-blur-md"
+      style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-page)', backgroundOpacity: 0.9 }}
+    >
+      <div className="mx-auto flex h-13 max-w-screen-xl items-center justify-between gap-6 px-5">
+        {/* Brand */}
+        <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
+          <div
+            className="flex h-6 w-6 items-center justify-center rounded"
+            style={{ backgroundColor: 'var(--accent)' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M2 10 L5 6 L8 8 L12 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <span className="text-sm font-bold tracking-tight transition-opacity group-hover:opacity-70" style={{ color: 'var(--text-primary)' }}>
+            SentimentSignal
+          </span>
+          <span
+            className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+            style={{ backgroundColor: 'var(--accent-dim)', color: 'var(--accent)' }}
+          >
+            Live
+          </span>
         </Link>
 
-        <div className="flex-1 max-w-md">
+        {/* Search */}
+        <div className="flex-1 max-w-sm">
           <SearchBar />
         </div>
 
-        <nav className="flex items-center gap-0.5">
-          <Link
-            to="/app"
-            className={`rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 hover:bg-[var(--accent-subtle)] ${
-              location.pathname === '/app' ? 'bg-[var(--accent-subtle)]' : ''
-            }`}
-            style={{
-              color: location.pathname === '/app' ? 'var(--text-primary)' : 'var(--text-secondary)',
-            }}
-          >
-            Dashboard
-          </Link>
-          <Link
-            to="/app/watchlists"
-            className={`rounded-md px-3 py-2 text-sm font-medium transition-all duration-200 hover:bg-[var(--accent-subtle)] ${
-              location.pathname.startsWith('/app/watchlists') ? 'bg-[var(--accent-subtle)]' : ''
-            }`}
-            style={{
-              color: location.pathname.startsWith('/app/watchlists') ? 'var(--text-primary)' : 'var(--text-secondary)',
-            }}
-          >
-            Watchlists
-          </Link>
+        {/* Nav */}
+        <nav className="flex items-center gap-1">
+          {[
+            { label: 'Feed', path: '/app' },
+            { label: 'Watchlist', path: '/app/watchlists' },
+          ].map(({ label, path }) => {
+            const active = path === '/app' ? location.pathname === '/app' : location.pathname.startsWith(path);
+            return (
+              <Link
+                key={path}
+                to={path}
+                className="rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150"
+                style={{
+                  color: active ? 'var(--text-primary)' : 'var(--text-muted)',
+                  backgroundColor: active ? 'var(--bg-elevated)' : 'transparent',
+                  border: `1px solid ${active ? 'var(--border)' : 'transparent'}`,
+                }}
+              >
+                {label}
+              </Link>
+            );
+          })}
           <ThemeToggle />
         </nav>
       </div>

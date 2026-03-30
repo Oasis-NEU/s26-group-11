@@ -14,6 +14,7 @@ stocks_bp = Blueprint("stocks", __name__)
 def _mention_to_dict(m: Mention) -> dict:
     return {
         "id": m.id,
+        "ticker": m.ticker,
         "source": m.source_type,
         "text": m.title,
         "url": m.url,
@@ -73,10 +74,24 @@ def _get_fundamentals(ticker: str) -> dict:
         return {}
 
 
+@stocks_bp.route("/feed")
+def feed():
+    """Recent high-credibility mentions across all stocks, newest first."""
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    mentions = (
+        Mention.query
+        .filter(Mention.published_at >= cutoff)
+        .order_by(Mention.published_at.desc())
+        .limit(60)
+        .all()
+    )
+    return jsonify([_mention_to_dict(m) for m in mentions])
+
+
 @stocks_bp.route("/trending")
 def trending():
-    """Top 20 tickers by mention count in the last 24h."""
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    """Top 20 tickers by mention count in the last 72h."""
+    cutoff = datetime.utcnow() - timedelta(hours=72)
     rows = (
         db.session.query(Mention.ticker, func.count(Mention.id).label("mentions"))
         .filter(Mention.published_at >= cutoff)
@@ -94,10 +109,10 @@ def trending():
 
 @stocks_bp.route("/shifters")
 def shifters():
-    """Top 20 tickers with the most new mentions in last 6h vs prior 18h."""
-    now = datetime.now(timezone.utc)
-    recent_cutoff = now - timedelta(hours=6)
-    prior_cutoff = now - timedelta(hours=24)
+    """Top 20 tickers with the most new mentions in last 24h vs prior 48h."""
+    now = datetime.utcnow()
+    recent_cutoff = now - timedelta(hours=24)
+    prior_cutoff = now - timedelta(hours=72)
 
     recent = (
         db.session.query(Mention.ticker, func.count(Mention.id).label("cnt"))

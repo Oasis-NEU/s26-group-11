@@ -70,6 +70,7 @@ export interface StockDetail {
 
 export interface Mention {
   id: number;
+  ticker: string | null;
   source: 'reddit' | 'twitter' | 'news';
   text: string;
   url: string | null;
@@ -95,6 +96,9 @@ export const searchStocks = (q: string) =>
 
 export const getStockDetail = (symbol: string) =>
   client.get<StockDetail>(`/api/stocks/${symbol}`).then((r) => r.data);
+
+export const getFeed = () =>
+  client.get<Mention[]>('/api/stocks/feed').then((r) => r.data);
 
 export const getStockMentions = (symbol: string, source?: string) =>
   client
