@@ -29,7 +29,7 @@ export const register = (email: string, password: string, username?: string) =>
   client.post<AuthResponse>('/api/auth/register', { email, password, ...(username ? { username } : {}) }).then((r) => r.data);
 
 export const registerRequest = (email: string, password: string, username?: string) =>
-  client.post<{ token: string; dev_otp?: string }>('/api/auth/register', {
+  client.post<{ token: string; dev_otp?: string } | AuthResponse>('/api/auth/register', {
     email, password, ...(username ? { username } : {}),
   }).then((r) => r.data);
 
