@@ -145,7 +145,7 @@ export function Portfolio() {
     <motion.div
       variants={staggerContainer}
       initial="hidden"
-      animate="visible"
+      animate="show"
       className="mx-auto max-w-screen-xl px-5 py-8 space-y-8"
     >
       {/* ── Header ── */}
