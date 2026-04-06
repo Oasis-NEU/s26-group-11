@@ -1,4 +1,4 @@
-const BASE = 'http://localhost:5001/api/user';
+const BASE = `${import.meta.env.VITE_API_URL ?? 'http://localhost:5001'}/api/user`;
 
 export interface UserPreferences {
   accent_color: string;
