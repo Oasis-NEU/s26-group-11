@@ -303,11 +303,27 @@ export function ThreadDetail() {
       </Link>
 
       {isLoading && (
-        <div className="space-y-4 animate-pulse">
-          <div className="h-6 w-2/3 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-          <div className="h-4 w-1/3 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-          <div className="h-20 w-full rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-        </div>
+        <>
+          {/* Skeleton for thread header */}
+          <div className="animate-pulse space-y-3 mb-8">
+            <div className="h-3 w-24 rounded" style={{ background: 'var(--border)' }} />
+            <div className="h-6 w-3/4 rounded" style={{ background: 'var(--border)' }} />
+            <div className="h-4 w-full rounded" style={{ background: 'var(--border)' }} />
+            <div className="h-4 w-2/3 rounded" style={{ background: 'var(--border)' }} />
+            <div className="flex gap-4 mt-4">
+              <div className="h-3 w-16 rounded" style={{ background: 'var(--border)' }} />
+              <div className="h-3 w-16 rounded" style={{ background: 'var(--border)' }} />
+            </div>
+          </div>
+          {/* Skeleton for comments */}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="animate-pulse border-t py-4 space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="h-3 w-20 rounded" style={{ background: 'var(--border)' }} />
+              <div className="h-4 w-full rounded" style={{ background: 'var(--border)' }} />
+              <div className="h-4 w-3/4 rounded" style={{ background: 'var(--border)' }} />
+            </div>
+          ))}
+        </>
       )}
 
       {isError && (
@@ -470,7 +486,15 @@ export function ThreadDetail() {
           <ReplyBox threadId={thread.id} />
 
           {/* Comments */}
-          {thread.comments.length === 0 ? (
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="animate-pulse border-t py-4 space-y-2" style={{ borderColor: 'var(--border)' }}>
+                <div className="h-3 w-20 rounded" style={{ background: 'var(--border)' }} />
+                <div className="h-4 w-full rounded" style={{ background: 'var(--border)' }} />
+                <div className="h-4 w-3/4 rounded" style={{ background: 'var(--border)' }} />
+              </div>
+            ))
+          ) : thread.comments.length === 0 ? (
             <p className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
               No replies yet — be the first.
             </p>

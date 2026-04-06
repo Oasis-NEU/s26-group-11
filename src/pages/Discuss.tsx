@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, TrendingUp, TrendingDown, Plus, X } from 'lucide-react';
+import { MessageSquare, TrendingUp, TrendingDown, Plus, X, Search, Loader2 } from 'lucide-react';
 import {
   getThreads, createThread, voteThread, deleteThread,
   type Thread,
@@ -13,8 +13,30 @@ import { Avatar } from '../components/Avatar';
 import { useToast } from '../store/useToast';
 import { renderWithTickerLinks } from '../utils/tickerLinks';
 
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
 const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
 const cardStyle = { borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' };
+
+// ── Thread Skeleton ───────────────────────────────────────────────────────────
+
+function ThreadSkeleton() {
+  const SKL_MONO: React.CSSProperties = { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" };
+  return (
+    <div className="border-b animate-pulse" style={{ borderColor: 'var(--border)', padding: '16px 0', ...SKL_MONO }}>
+      <div className="h-3 w-16 rounded mb-2" style={{ background: 'var(--border)' }} />
+      <div className="h-4 w-3/4 rounded mb-2" style={{ background: 'var(--border)' }} />
+      <div className="h-3 w-1/2 rounded" style={{ background: 'var(--border)' }} />
+    </div>
+  );
+}
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -329,21 +351,81 @@ function ThreadCard({ thread, currentUsername, isLoggedIn }: {
   );
 }
 
+// ── Empty State ───────────────────────────────────────────────────────────────
+
+function EmptyState({ hasSearch, isLoggedIn: loggedIn }: { hasSearch: boolean; isLoggedIn: boolean }) {
+  return (
+    <div className="py-20 text-center space-y-3">
+      <p className="text-4xl">💬</p>
+      <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
+        {hasSearch ? 'No threads match your search' : 'No threads yet'}
+      </p>
+      {!hasSearch && (
+        <>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            {loggedIn
+              ? 'Be the first to start a discussion.'
+              : 'Sign in to start the conversation.'}
+          </p>
+          {!loggedIn && (
+            <Link
+              to="/auth"
+              className="inline-block mt-2 px-4 py-1.5 text-xs font-black uppercase tracking-widest"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--bg-page)', ...MONO }}
+            >
+              Sign In
+            </Link>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Discuss Page ──────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 20;
 
 export function Discuss() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sort, setSort]           = useState<'new' | 'top'>('new');
   const [showForm, setShowForm]   = useState(false);
+  const [search, setSearch]       = useState('');
+  const [page, setPage]           = useState(0);
+  const [allThreads, setAllThreads] = useState<Thread[]>([]);
   const { isLoggedIn, username: currentUsername } = useAuth();
 
-  const tickerFilter = searchParams.get('ticker')?.toUpperCase() || undefined;
+  const tickerFilter    = searchParams.get('ticker')?.toUpperCase() || undefined;
+  const debouncedSearch = useDebounce(search, 300);
 
-  const { data: threads, isLoading } = useQuery({
-    queryKey: ['threads', tickerFilter, sort],
-    queryFn:  () => getThreads(tickerFilter, sort),
+  // Reset accumulated list + page when filter / search / sort changes
+  useEffect(() => {
+    setAllThreads([]);
+    setPage(0);
+  }, [tickerFilter, debouncedSearch, sort]);
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['threads', tickerFilter, sort, page, debouncedSearch],
+    queryFn:  () => getThreads(tickerFilter, sort, PAGE_SIZE, page * PAGE_SIZE, debouncedSearch),
     staleTime: 60_000,
   });
+
+  // Append page results to accumulated list
+  useEffect(() => {
+    if (!data) return;
+    if (page === 0) {
+      setAllThreads(data);
+    } else {
+      setAllThreads((prev) => {
+        const existingIds = new Set(prev.map((t) => t.id));
+        const fresh = data.filter((t) => !existingIds.has(t.id));
+        return [...prev, ...fresh];
+      });
+    }
+  }, [data, page]);
+
+  const showLoadMore = data?.length === PAGE_SIZE;
+  const isFirstLoad  = isLoading && page === 0;
 
   return (
     <motion.div
@@ -423,55 +505,48 @@ export function Discuss() {
         )}
       </div>
 
+      {/* Search box */}
+      <div className="relative">
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 pointer-events-none"
+          style={{ color: 'var(--text-muted)' }}
+        />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search threads…"
+          className="w-full rounded-none border pl-9 pr-3 py-2 text-xs outline-none focus:border-[var(--accent)] transition-colors"
+          style={{
+            borderColor: 'var(--border)',
+            backgroundColor: 'var(--bg-elevated)',
+            color: 'var(--text-primary)',
+            ...MONO,
+          }}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2"
+            style={{ color: 'var(--text-muted)' }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
       {/* Thread list */}
-      {isLoading && (
-        <div className="space-y-4">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex gap-4 py-4 border-b animate-pulse" style={{ borderColor: 'var(--border)' }}>
-              <div className="w-8 space-y-1">
-                <div className="h-4 w-4 rounded mx-auto" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-                <div className="h-3 w-6 rounded mx-auto" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-              </div>
-              <div className="flex-1 space-y-2">
-                <div className="h-3 w-20 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-                <div className="h-4 w-3/4 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-                <div className="h-3 w-1/2 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-              </div>
-            </div>
-          ))}
-        </div>
+      {isFirstLoad && Array.from({ length: 6 }).map((_, i) => <ThreadSkeleton key={i} />)}
+      {!isFirstLoad && allThreads.length === 0 && (
+        <EmptyState hasSearch={!!debouncedSearch} isLoggedIn={isLoggedIn()} />
       )}
-
-      {!isLoading && threads?.length === 0 && (
-        <div className="py-20 text-center space-y-3">
-          <p className="text-4xl">💬</p>
-          <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>
-            No threads yet
-          </p>
-          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-            {isLoggedIn()
-              ? 'Be the first to start a discussion.'
-              : 'Sign in to start the conversation.'}
-          </p>
-          {!isLoggedIn() && (
-            <Link
-              to="/auth"
-              className="inline-block mt-2 px-4 py-1.5 text-xs font-black uppercase tracking-widest"
-              style={{ backgroundColor: 'var(--accent)', color: 'var(--bg-page)', ...MONO }}
-            >
-              Sign In
-            </Link>
-          )}
-        </div>
-      )}
-
-      {threads && threads.length > 0 && (
+      {!isFirstLoad && allThreads.length > 0 && (
         <motion.div
           variants={staggerContainer}
           initial="hidden"
           animate="show"
         >
-          {threads.map((t) => (
+          {allThreads.map((t) => (
             <ThreadCard
               key={t.id}
               thread={t}
@@ -480,6 +555,27 @@ export function Discuss() {
             />
           ))}
         </motion.div>
+      )}
+
+      {/* Load more */}
+      {!isFirstLoad && showLoadMore && (
+        <div className="flex justify-center pt-2 pb-6">
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={isFetching}
+            className="flex items-center gap-2 px-5 py-2 text-xs font-bold uppercase tracking-widest border transition-colors disabled:opacity-50 hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', ...MONO }}
+          >
+            {isFetching && page > 0 ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading…
+              </>
+            ) : (
+              'Load more'
+            )}
+          </button>
+        </div>
       )}
     </motion.div>
   );

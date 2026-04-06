@@ -179,15 +179,23 @@ export function UserProfile() {
       </motion.div>
 
       {isLoading && (
-        <div className="space-y-4 animate-pulse">
-          <div className="flex items-center gap-5">
-            <div className="h-16 w-16 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
+        <div className="animate-pulse">
+          {/* Avatar + name area */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-16 h-16 rounded-full" style={{ background: 'var(--border)' }} />
             <div className="space-y-2">
-              <div className="h-5 w-32 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
-              <div className="h-3 w-24 rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
+              <div className="h-5 w-32 rounded" style={{ background: 'var(--border)' }} />
+              <div className="h-3 w-48 rounded" style={{ background: 'var(--border)' }} />
+              <div className="h-3 w-24 rounded" style={{ background: 'var(--border)' }} />
             </div>
           </div>
-          <div className="h-16 w-full rounded" style={{ backgroundColor: 'var(--bg-elevated)' }} />
+          {/* Thread skeletons */}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="border-t py-4 space-y-2" style={{ borderColor: 'var(--border)' }}>
+              <div className="h-4 w-2/3 rounded" style={{ background: 'var(--border)' }} />
+              <div className="h-3 w-1/3 rounded" style={{ background: 'var(--border)' }} />
+            </div>
+          ))}
         </div>
       )}
 
@@ -298,7 +306,7 @@ export function UserProfile() {
               </span>
             </div>
 
-            {profile.threads.length === 0 ? (
+            {!isLoading && profile.threads.length === 0 ? (
               <p className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
                 No threads yet.
               </p>
