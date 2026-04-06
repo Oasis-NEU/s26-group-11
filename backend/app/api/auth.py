@@ -13,7 +13,7 @@ from flask_jwt_extended import (
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 from app.core import config
-from app.core.mail import send_email
+from app.core.mail import send_email, send_welcome_email
 from app.db.models import User
 from app.extensions import bcrypt, db
 
@@ -114,6 +114,7 @@ def register_request():
         user = User(email=email, password_hash=pw_hash, username=username)
         db.session.add(user)
         db.session.commit()
+        send_welcome_email(email, username or "")
         jwt_token = create_access_token(identity=str(user.id))
         resp = make_response(jsonify(**_user_dict(user)), 201)
         set_access_cookies(resp, jwt_token)
@@ -159,6 +160,7 @@ def register_verify():
     user = User(email=email, password_hash=pw_hash, username=username)
     db.session.add(user)
     db.session.commit()
+    send_welcome_email(email, username or "")
 
     jwt_token = create_access_token(identity=str(user.id))
     resp = make_response(jsonify(**_user_dict(user)), 201)
