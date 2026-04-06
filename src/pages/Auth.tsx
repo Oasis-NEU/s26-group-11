@@ -113,6 +113,13 @@ export function Auth() {
       }
       if (mode === 'register') {
         const res = await registerRequest(email, password, username || undefined);
+        // If email sending failed, backend creates account directly and returns user data
+        if ('email' in res) {
+          setAuth(res.email, res.username);
+          setProfile({ first_name: res.first_name, last_name: res.last_name, bio: res.bio, avatar_url: res.avatar_url });
+          navigate('/app');
+          return;
+        }
         setPendingToken(res.token);
         if (res.dev_otp) setDevOtp(res.dev_otp);
         setMode('verify');
