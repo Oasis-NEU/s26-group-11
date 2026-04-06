@@ -33,9 +33,15 @@ export interface ThreadDetail extends Thread {
   comments: Comment[];
 }
 
-export const getThreads = (ticker?: string, sort: 'new' | 'top' = 'new') =>
+export const getThreads = (
+  ticker?: string,
+  sort: 'new' | 'top' = 'new',
+  limit = 20,
+  offset = 0,
+  q = '',
+) =>
   client
-    .get<Thread[]>('/api/discuss/threads', { params: { ticker, sort } })
+    .get<Thread[]>('/api/discuss/threads', { params: { ticker, sort, limit, offset, q: q || undefined } })
     .then((r) => r.data);
 
 export const getThread = (id: number) =>

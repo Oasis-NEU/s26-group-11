@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Trash2, Plus, TrendingUp, TrendingDown, Minus } from 'lucide-react';
@@ -58,14 +58,23 @@ export function Portfolio() {
     })),
   });
 
+  // Build a ticker → query result map so lookups are always correct regardless of order
+  const priceByTicker = useMemo(() => {
+    const map: Record<string, typeof priceQueries[0]> = {};
+    (portfolio ?? []).forEach((item, i) => {
+      map[item.ticker] = priceQueries[i];
+    });
+    return map;
+  }, [portfolio, priceQueries]);
+
   // Build enriched positions with computed fields
   const positions: (PortfolioItem & {
     current_price: number | null;
     market_value: number | null;
     gain_loss: number | null;
     gain_loss_pct: number | null;
-  })[] = (portfolio ?? []).map((item, i) => {
-    const priceData = priceQueries[i]?.data;
+  })[] = (portfolio ?? []).map((item) => {
+    const priceData = priceByTicker[item.ticker]?.data;
     const current_price = priceData?.price ?? null;
     const market_value = current_price !== null ? item.shares * current_price : null;
     const cost_basis = item.shares * item.avg_cost;
@@ -78,14 +87,19 @@ export function Portfolio() {
   });
 
   // Portfolio totals
-  const totalValue = positions.reduce(
-    (sum, p) => sum + (p.market_value ?? p.shares * p.avg_cost),
-    0,
-  );
+  const allPricesLoaded = (portfolio ?? []).every(p => !priceByTicker[p.ticker]?.isLoading);
+  const anyPriceLoading = (portfolio ?? []).some(p => priceByTicker[p.ticker]?.isLoading);
+
   const totalCostBasis = positions.reduce((sum, p) => sum + p.shares * p.avg_cost, 0);
-  const totalGainLoss = totalValue - totalCostBasis;
+  // Only compute market-value totals when every price has arrived
+  const totalValue = allPricesLoaded
+    ? positions.reduce((sum, p) => sum + (p.market_value ?? p.shares * p.avg_cost), 0)
+    : null;
+  const totalGainLoss = totalValue !== null ? totalValue - totalCostBasis : null;
   const totalGainLossPct =
-    totalCostBasis > 0 ? (totalGainLoss / totalCostBasis) * 100 : 0;
+    totalGainLoss !== null && totalCostBasis > 0
+      ? (totalGainLoss / totalCostBasis) * 100
+      : null;
 
   const addMutation = useMutation({
     mutationFn: addPosition,
@@ -119,9 +133,9 @@ export function Portfolio() {
   }
 
   const pnlColor =
-    totalGainLoss > 0
+    totalGainLoss !== null && totalGainLoss > 0
       ? 'var(--accent)'
-      : totalGainLoss < 0
+      : totalGainLoss !== null && totalGainLoss < 0
       ? 'var(--red)'
       : 'var(--text-muted)';
 
@@ -155,21 +169,40 @@ export function Portfolio() {
               <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
                 Total Value
               </span>
-              <span
-                className="text-2xl font-black"
-                style={{ color: 'var(--text-primary)', ...MONO }}
-              >
-                {fmtCurrency(totalValue)}
-              </span>
-              <span
-                className="text-xs font-bold inline-flex items-center gap-1"
-                style={{ color: pnlColor, ...MONO }}
-              >
-                {totalGainLoss >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
-                {totalGainLoss >= 0 ? '+' : ''}
-                {fmtCurrency(totalGainLoss)} ({totalGainLossPct >= 0 ? '+' : ''}
-                {fmt(totalGainLossPct, 2)}%)
-              </span>
+              {anyPriceLoading ? (
+                <span
+                  className="text-2xl font-black inline-flex items-center gap-2"
+                  style={{ color: 'var(--text-muted)', ...MONO }}
+                >
+                  <span
+                    className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent"
+                    aria-label="Loading prices"
+                  />
+                  Loading prices…
+                </span>
+              ) : (
+                <span
+                  className="text-2xl font-black"
+                  style={{ color: 'var(--text-primary)', ...MONO }}
+                >
+                  {totalValue !== null ? fmtCurrency(totalValue) : '—'}
+                </span>
+              )}
+              {totalGainLoss !== null && totalGainLossPct !== null ? (
+                <span
+                  className="text-xs font-bold inline-flex items-center gap-1"
+                  style={{ color: pnlColor, ...MONO }}
+                >
+                  {totalGainLoss >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+                  {totalGainLoss >= 0 ? '+' : ''}
+                  {fmtCurrency(totalGainLoss)} ({totalGainLossPct >= 0 ? '+' : ''}
+                  {fmt(totalGainLossPct, 2)}%)
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: 'var(--text-muted)', ...MONO }}>
+                  Cost basis: {fmtCurrency(totalCostBasis)}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -313,9 +346,7 @@ export function Portfolio() {
             {/* Rows */}
             <AnimatePresence initial={false}>
               {positions.map((pos) => {
-                const priceLoading = priceQueries.find(
-                  (_, i) => portfolio?.[i]?.ticker === pos.ticker,
-                )?.isLoading;
+                const priceLoading = priceByTicker[pos.ticker]?.isLoading;
 
                 return (
                   <motion.div
@@ -352,7 +383,7 @@ export function Portfolio() {
                     {/* Current price */}
                     <span className="text-xs" style={{ color: 'var(--text-primary)', ...MONO }}>
                       {priceLoading
-                        ? '—'
+                        ? <span style={{ color: 'var(--text-muted)' }}>…</span>
                         : pos.current_price !== null
                         ? fmtCurrency(pos.current_price)
                         : '—'}
@@ -360,12 +391,18 @@ export function Portfolio() {
 
                     {/* Market value */}
                     <span className="text-xs font-bold" style={{ color: 'var(--text-primary)', ...MONO }}>
-                      {pos.market_value !== null ? fmtCurrency(pos.market_value) : '—'}
+                      {priceLoading
+                        ? <span style={{ color: 'var(--text-muted)' }}>…</span>
+                        : pos.market_value !== null
+                        ? fmtCurrency(pos.market_value)
+                        : '—'}
                     </span>
 
                     {/* P&L */}
                     <span>
-                      {pos.gain_loss !== null && pos.gain_loss_pct !== null ? (
+                      {priceLoading ? (
+                        <span className="text-xs" style={{ color: 'var(--text-muted)', ...MONO }}>…</span>
+                      ) : pos.gain_loss !== null && pos.gain_loss_pct !== null ? (
                         <PnlBadge value={pos.gain_loss} pct={pos.gain_loss_pct} />
                       ) : (
                         <span className="text-xs" style={{ color: 'var(--text-muted)', ...MONO }}>

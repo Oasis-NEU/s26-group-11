@@ -230,25 +230,30 @@ export function Compare() {
       </motion.div>
 
       {/* Input row */}
-      <motion.div variants={staggerItem} className="flex gap-3 flex-wrap">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="e.g. AAPL, MSFT, GOOGL"
-          className="flex-1 min-w-[200px] border rounded px-4 py-2.5 text-[12px] outline-none focus:border-[var(--accent)] transition-colors bg-transparent"
-          style={{ borderColor: 'var(--border)', color: 'var(--text-primary)', ...MONO }}
-          maxLength={30}
-        />
-        <button
-          onClick={handleCompare}
-          disabled={isLoading || isFetching}
-          className="border px-5 py-2.5 text-[11px] font-black uppercase tracking-widest transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', ...MONO }}
-        >
-          {isLoading || isFetching ? 'Loading...' : 'Compare'}
-        </button>
+      <motion.div variants={staggerItem} className="space-y-1.5">
+        <div className="flex gap-3 flex-wrap">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="e.g. AAPL, MSFT, GOOGL"
+            className="flex-1 min-w-[200px] border rounded px-4 py-2.5 text-[12px] outline-none focus:border-[var(--accent)] transition-colors bg-transparent"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-primary)', ...MONO }}
+            maxLength={30}
+          />
+          <button
+            onClick={handleCompare}
+            disabled={isLoading || isFetching}
+            className="border px-5 py-2.5 text-[11px] font-black uppercase tracking-widest transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ borderColor: 'var(--border)', color: 'var(--text-secondary)', ...MONO }}
+          >
+            {isLoading || isFetching ? 'Loading...' : 'Compare'}
+          </button>
+        </div>
+        <p className="text-[10px]" style={{ color: 'var(--text-muted)', ...MONO }}>
+          Up to 3 tickers
+        </p>
       </motion.div>
 
       {/* Error */}
@@ -382,15 +387,15 @@ export function Compare() {
       {tickers.length === 0 && (
         <motion.div
           variants={staggerItem}
-          className="border rounded p-10 text-center space-y-2"
-          style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}
+          className="flex flex-col items-center justify-center py-24 text-center"
         >
-          <BarChart2 size={28} style={{ color: 'var(--text-muted)', margin: '0 auto' }} />
-          <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
-            Enter up to 3 tickers above to compare
+          <div className="text-4xl mb-4">⚡</div>
+          <p className="text-[13px] font-bold tracking-widest uppercase mb-2" style={{ color: 'var(--text-primary)', ...MONO }}>
+            Compare Stocks
           </p>
-          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-            Example: AAPL, TSLA, NVDA
+          <p className="text-[12px] max-w-xs" style={{ color: 'var(--text-muted)', ...MONO }}>
+            Enter 2–3 tickers above separated by commas.<br />
+            e.g. <span style={{ color: 'var(--accent)' }}>AAPL, MSFT, GOOGL</span>
           </p>
         </motion.div>
       )}

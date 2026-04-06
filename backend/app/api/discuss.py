@@ -123,15 +123,20 @@ def list_threads():
     uid    = int(get_jwt_identity()) if get_jwt_identity() else None
     ticker = (request.args.get("ticker") or "").strip().upper() or None
     sort   = request.args.get("sort", "new")          # new | top
+    limit  = request.args.get("limit", 20, type=int)
+    offset = request.args.get("offset", 0, type=int)
+    search = (request.args.get("q") or "").strip()
 
     q = Thread.query
     if ticker:
         q = q.filter(Thread.ticker == ticker)
+    if search:
+        q = q.filter(Thread.title.ilike(f"%{search}%"))
 
     q = q.order_by(Thread.upvotes.desc() if sort == "top"
                    else Thread.created_at.desc())
 
-    threads = q.limit(50).all()
+    threads = q.offset(offset).limit(limit).all()
     return jsonify([_thread_dict(t, current_uid=uid) for t in threads])
 
 
