@@ -204,15 +204,51 @@ def _company_name_for(ticker: str) -> str | None:
         return None
 
 
+_FINANCE_KEYWORDS = {
+    "stock", "share", "shares", "market", "earnings", "revenue", "profit",
+    "loss", "dividend", "investor", "investing", "investment", "portfolio",
+    "trade", "trading", "price", "valuation", "ipo", "sec", "nasdaq", "nyse",
+    "s&p", "dow", "bull", "bear", "rally", "selloff", "sell-off", "quarter",
+    "guidance", "forecast", "analyst", "upgrade", "downgrade", "buy", "sell",
+    "hold", "target", "eps", "pe ratio", "hedge", "fund", "etf", "bond",
+    "yield", "interest rate", "fed", "inflation", "gdp", "economy", "economic",
+    "acquisition", "merger", "buyback", "ipo", "ceo", "cfo", "coo", "exec",
+    "layoff", "lawsuit", "regulation", "fine", "penalty", "bankruptcy",
+    "debt", "cash flow", "balance sheet", "income statement", "fiscal",
+}
+
+_NOISE_TITLES = {
+    "video!", "watch:", "highlights", "fight", "game", "score", "goal",
+    "tournament", "championship", "vs.", "vs ", "ufc", "nfl", "nba", "nhl",
+    "mlb", "soccer", "football", "basketball", "baseball", "hockey",
+    "wrestling", "boxing", "mma", "kick", "punch", "knockout",
+}
+
+
 def _is_relevant(title: str, summary: str | None, ticker: str,
                  company_name: str | None) -> bool:
     """
-    True if the article is plausibly about this company.
+    True if the article is plausibly about this company AND has financial context.
     Used as a last-resort gate before persisting any article from any source.
     """
     import re as _re
     text = (title + " " + (summary or "")).upper()
     t    = ticker.upper()
+    title_lower = title.lower()
+
+    # Hard reject: obvious sports/entertainment noise titles
+    for noise in _NOISE_TITLES:
+        if noise in title_lower:
+            return False
+
+    # Must contain at least one finance keyword OR explicit ticker notation
+    has_finance_context = (
+        f"${t}" in text
+        or f"({t})" in text
+        or any(kw in text.lower() for kw in _FINANCE_KEYWORDS)
+    )
+    if not has_finance_context:
+        return False
 
     # $TICKER always counts
     if f"${t}" in text:
