@@ -60,20 +60,20 @@ export function Portfolio() {
 
   // Build enriched positions with computed fields
   const positions: (PortfolioItem & {
-    current_price: number | null;
-    market_value: number | null;
-    gain_loss: number | null;
-    gain_loss_pct: number | null;
+    current_price: number | undefined;
+    market_value: number | undefined;
+    gain_loss: number | undefined;
+    gain_loss_pct: number | undefined;
   })[] = (portfolio ?? []).map((item, i) => {
     const priceData = priceQueries[i]?.data;
-    const current_price = priceData?.price ?? null;
-    const market_value = current_price !== null ? item.shares * current_price : null;
+    const current_price = priceData?.price ?? undefined;
+    const market_value = current_price != null ? item.shares * current_price : undefined;
     const cost_basis = item.shares * item.avg_cost;
-    const gain_loss = market_value !== null ? market_value - cost_basis : null;
+    const gain_loss = market_value != null ? market_value - cost_basis : undefined;
     const gain_loss_pct =
-      item.avg_cost > 0 && current_price !== null
+      item.avg_cost > 0 && current_price != null
         ? ((current_price - item.avg_cost) / item.avg_cost) * 100
-        : null;
+        : undefined;
     return { ...item, current_price, market_value, gain_loss, gain_loss_pct };
   });
 
@@ -353,19 +353,19 @@ export function Portfolio() {
                     <span className="text-xs" style={{ color: 'var(--text-primary)', ...MONO }}>
                       {priceLoading
                         ? '—'
-                        : pos.current_price !== null
+                        : pos.current_price != null
                         ? fmtCurrency(pos.current_price)
                         : '—'}
                     </span>
 
                     {/* Market value */}
                     <span className="text-xs font-bold" style={{ color: 'var(--text-primary)', ...MONO }}>
-                      {pos.market_value !== null ? fmtCurrency(pos.market_value) : '—'}
+                      {pos.market_value != null ? fmtCurrency(pos.market_value) : '—'}
                     </span>
 
                     {/* P&L */}
                     <span>
-                      {pos.gain_loss !== null && pos.gain_loss_pct !== null ? (
+                      {pos.gain_loss != null && pos.gain_loss_pct != null ? (
                         <PnlBadge value={pos.gain_loss} pct={pos.gain_loss_pct} />
                       ) : (
                         <span className="text-xs" style={{ color: 'var(--text-muted)', ...MONO }}>

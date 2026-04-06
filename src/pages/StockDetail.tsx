@@ -998,8 +998,8 @@ export function StockDetail() {
                       <Tooltip
                         contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                         labelStyle={{ color: 'var(--text-muted)' }}
-                        formatter={(v: number, _name: string, props: { payload?: SentimentPoint }) => [
-                          `${v > 0 ? '+' : ''}${v.toFixed(3)}`,
+                        formatter={(v: number | undefined, _name: string | undefined, props: { payload?: SentimentPoint }) => [
+                          v != null ? `${v > 0 ? '+' : ''}${v.toFixed(3)}` : '—',
                           `Sentiment (${props.payload?.count ?? 0} articles)`,
                         ]}
                       />
