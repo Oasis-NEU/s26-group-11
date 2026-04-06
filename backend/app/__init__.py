@@ -1,3 +1,6 @@
+import os
+from datetime import timedelta
+
 from flask import Flask
 from flask_cors import CORS
 
@@ -14,7 +17,22 @@ def create_app():
     app.config["SECRET_KEY"] = config.SECRET_KEY
     app.config["JWT_SECRET_KEY"] = config.JWT_SECRET_KEY
 
-    CORS(app, origins=["http://localhost:5173"])
+    # In production (HTTPS) cookies must be Secure; in dev HTTP is fine
+    is_prod = os.getenv("FLASK_ENV", "development") == "production"
+
+    app.config["JWT_TOKEN_LOCATION"]    = ["cookies"]
+    app.config["JWT_COOKIE_SECURE"]     = is_prod
+    app.config["JWT_COOKIE_SAMESITE"]   = "None" if is_prod else "Lax"
+    app.config["JWT_COOKIE_CSRF_PROTECT"] = False
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=8)
+
+    # Allow both local dev and the deployed Vercel frontend
+    allowed_origins = ["http://localhost:5173"]
+    frontend_url = os.getenv("FRONTEND_URL", "")
+    if frontend_url:
+        allowed_origins.append(frontend_url)
+
+    CORS(app, origins=allowed_origins, supports_credentials=True)
 
     from app.extensions import bcrypt, db, jwt
 
@@ -27,16 +45,26 @@ def create_app():
     from app.api.auth import auth_bp
     from app.api.stocks import stocks_bp
     from app.api.watchlist import watchlist_bp
+    from app.api.discuss import discuss_bp
+    from app.api.preferences import prefs_bp
+    from app.api.users import users_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(news_bp)
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(stocks_bp, url_prefix="/api/stocks")
     app.register_blueprint(watchlist_bp, url_prefix="/api/watchlist")
+    app.register_blueprint(discuss_bp, url_prefix="/api/discuss")
+    app.register_blueprint(prefs_bp, url_prefix="/api/user")
+    app.register_blueprint(users_bp, url_prefix="/api/users")
 
     with app.app_context():
         from app.db import models  # noqa: F401
 
         db.create_all()
+
+    # Start background news-ingest scheduler (daemon thread, 30-min interval)
+    from app.core.scheduler import start as scheduler_start
+    scheduler_start(app, interval_minutes=30)
 
     return app

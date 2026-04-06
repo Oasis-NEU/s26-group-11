@@ -8,6 +8,8 @@ __pycache__/
 instance/
 backend/.env
 backend/.venv/
+.env.production
+.env.local
 
 # Logs
 logs
@@ -33,3 +35,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude / AI tooling
+.claude/
+.claire/
+
+# Runtime data
+backend/app/.newsapi_usage.json
+
+# Vercel
+.vercel/

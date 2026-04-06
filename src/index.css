@@ -13,6 +13,9 @@
   --accent-dim: rgba(22, 101, 52, 0.08);
   --red: #991b1b;
   --red-dim: rgba(153, 27, 27, 0.06);
+  --graphic-stroke: rgba(0, 0, 0, 0.07);
+  --graphic-fill: rgba(22, 101, 52, 0.04);
+  --accent-subtle: rgba(22, 101, 52, 0.05);
 }
 
 .dark {
@@ -28,6 +31,9 @@
   --accent-dim: rgba(34, 197, 94, 0.08);
   --red: #ef4444;
   --red-dim: rgba(239, 68, 68, 0.08);
+  --graphic-stroke: rgba(255, 255, 255, 0.06);
+  --graphic-fill: rgba(34, 197, 94, 0.04);
+  --accent-subtle: rgba(34, 197, 94, 0.06);
 }
 
 @layer base {
@@ -58,3 +64,57 @@
   outline: 1px solid var(--accent);
   outline-offset: 2px;
 }
+
+@keyframes ticker-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
+/* Pause ticker on hover */
+.ticker-tape:hover > div {
+  animation-play-state: paused;
+}
+
+@keyframes slide-in-right {
+  from { transform: translateX(8px); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+.animate-slide-in { animation: slide-in-right 0.3s ease-out; }
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up { animation: fade-up 0.3s ease-out both; }
+
+/* Pulse glow on interactive cards */
+@keyframes border-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%       { box-shadow: 0 0 0 2px var(--accent-dim); }
+}
+
+/* Verge-style category label accent */
+.category-tag {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+}
+
+/* ── Density modes ──────────────────────────────────────────────────── */
+.density-compact .card-gap     { gap: 0.5rem;  }
+.density-compact .card-pad     { padding: 0.625rem; }
+.density-compact .card-text    { font-size: 0.75rem; }
+.density-compact .section-gap  { gap: 0.75rem; }
+
+.density-comfortable .card-gap    { gap: 1rem; }
+.density-comfortable .card-pad    { padding: 1rem; }
+.density-comfortable .card-text   { font-size: 0.875rem; }
+.density-comfortable .section-gap { gap: 1.25rem; }

@@ -5,6 +5,7 @@ flask-sqlalchemy
 flask-migrate
 flask-bcrypt
 flask-jwt-extended
+flask-mail
 
 # Database
 psycopg2-binary
@@ -12,10 +13,16 @@ psycopg2-binary
 # Data collection
 requests
 yfinance
+feedparser
+praw>=7.7.0
 
-# Sentiment analysis
+# NLP / Sentiment analysis
 vaderSentiment
+# transformers and torch only needed locally (FINBERT_DISABLED=1 in production)
+# transformers>=4.40.0
+# torch
 
 # Utilities
 python-dotenv
 gunicorn
+resend
