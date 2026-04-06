@@ -16,6 +16,7 @@ export interface PublicWatchlist {
 }
 
 export interface PublicProfile {
+  id:                number;
   username:          string;
   display_name:      string | null;
   first_name:        string | null;
@@ -30,3 +31,23 @@ export interface PublicProfile {
 
 export const getPublicProfile = (username: string) =>
   client.get<PublicProfile>(`/api/users/${username}`).then((r) => r.data);
+
+export interface FollowUser {
+  id:       number;
+  username: string;
+}
+
+export const followUser = (uid: number) =>
+  client.post<{ following: boolean }>(`/api/users/${uid}/follow`).then((r) => r.data);
+
+export const unfollowUser = (uid: number) =>
+  client.delete<{ following: boolean }>(`/api/users/${uid}/follow`).then((r) => r.data);
+
+export const getFollowStatus = (uid: number) =>
+  client.get<{ following: boolean }>(`/api/users/${uid}/follow/status`).then((r) => r.data);
+
+export const getFollowers = (uid: number) =>
+  client.get<FollowUser[]>(`/api/users/${uid}/followers`).then((r) => r.data);
+
+export const getFollowing = (uid: number) =>
+  client.get<FollowUser[]>(`/api/users/${uid}/following`).then((r) => r.data);

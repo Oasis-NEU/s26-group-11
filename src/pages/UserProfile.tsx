@@ -1,10 +1,12 @@
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Calendar, MessageSquare, ChevronUp, Globe } from 'lucide-react';
-import { getPublicProfile, type MiniThread, type PublicWatchlist } from '../api/users';
+import { getPublicProfile, getFollowStatus, getFollowers, getFollowing, followUser, unfollowUser, type MiniThread, type PublicWatchlist } from '../api/users';
 import { staggerContainer, staggerItem } from '../components/PageEnter';
 import { Avatar } from '../components/Avatar';
+import { useAuth } from '../store/useAuth';
+import { getMe } from '../api/auth';
 
 const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
 
@@ -105,12 +107,52 @@ function WatchlistPreviewCard({ wl }: { wl: PublicWatchlist }) {
 
 export function UserProfile() {
   const { username } = useParams<{ username: string }>();
+  const qc = useQueryClient();
+  const { isLoggedIn } = useAuth();
+  const loggedIn = isLoggedIn();
 
   const { data: profile, isLoading, isError } = useQuery({
     queryKey: ['user-profile', username],
     queryFn: () => getPublicProfile(username!),
     enabled: !!username,
     retry: false,
+  });
+
+  // Get current user's numeric ID via /api/auth/me
+  const { data: me } = useQuery({
+    queryKey: ['me'],
+    queryFn: getMe,
+    enabled: loggedIn,
+  });
+
+  const currentUserId = me?.id ?? null;
+  const profileUserId = profile?.id ?? null;
+
+  const { data: followStatusData } = useQuery({
+    queryKey: ['follow-status', profileUserId],
+    queryFn: () => getFollowStatus(profileUserId!),
+    enabled: !!profileUserId && !!currentUserId && profileUserId !== currentUserId,
+  });
+  const isFollowing = followStatusData?.following ?? false;
+
+  const { data: followers } = useQuery({
+    queryKey: ['followers', profileUserId],
+    queryFn: () => getFollowers(profileUserId!),
+    enabled: !!profileUserId,
+  });
+
+  const { data: following } = useQuery({
+    queryKey: ['following', profileUserId],
+    queryFn: () => getFollowing(profileUserId!),
+    enabled: !!profileUserId,
+  });
+
+  const followMutation = useMutation({
+    mutationFn: () => isFollowing ? unfollowUser(profileUserId!) : followUser(profileUserId!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['follow-status', profileUserId] });
+      qc.invalidateQueries({ queryKey: ['followers', profileUserId] });
+    },
   });
 
   const displayName = profile?.display_name ?? profile?.username ?? username;
@@ -178,6 +220,25 @@ export function UserProfile() {
                 <p className="text-sm" style={{ color: 'var(--text-muted)', ...MONO }}>
                   @{profile.username}
                 </p>
+                {currentUserId && currentUserId !== profileUserId && (
+                  <button
+                    onClick={() => followMutation.mutate()}
+                    disabled={followMutation.isPending}
+                    className="px-3 py-1.5 text-[11px] border transition-all disabled:opacity-40"
+                    style={{
+                      borderColor:     isFollowing ? 'var(--border)' : 'var(--accent)',
+                      color:           isFollowing ? 'var(--text-muted)' : 'var(--accent)',
+                      backgroundColor: isFollowing ? 'transparent' : 'var(--accent-dim)',
+                    }}
+                  >
+                    {isFollowing ? 'Following' : 'Follow'}
+                  </button>
+                )}
+              </div>
+              <div className="mt-1">
+                <span className="text-[10px]" style={{ color: 'var(--text-muted)', ...MONO }}>
+                  {followers?.length ?? 0} followers · {following?.length ?? 0} following
+                </span>
               </div>
               {profile.bio && (
                 <p className="mt-2 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>

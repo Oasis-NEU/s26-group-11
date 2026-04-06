@@ -644,41 +644,35 @@ def reddit_pulse(ticker: str):
 
 @stocks_bp.route("/<ticker>/sentiment-history")
 def sentiment_history(ticker: str):
-    """
-    GET /api/stocks/<ticker>/sentiment-history?days=7
-    Returns daily sentiment snapshots for trend display.
-    """
-    import datetime as _dt
-    from app.db.models import SentimentSnapshot
-
-    days = min(int(request.args.get("days", 7)), 30)
+    """Return daily average sentiment score for the last N days."""
+    days = request.args.get("days", 30, type=int)
+    days = max(1, min(90, days))
     ticker = ticker.upper()
 
-    today = _dt.date.today()
-    snapshots = (
-        SentimentSnapshot.query
-        .filter(
-            SentimentSnapshot.ticker == ticker,
-            SentimentSnapshot.date >= today - _dt.timedelta(days=days - 1),
+    import datetime as _dt
+
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+
+    rows = (
+        db.session.query(
+            func.date(Mention.published_at).label("day"),
+            func.avg(Mention.sentiment_score).label("avg_score"),
+            func.count(Mention.id).label("count"),
         )
-        .order_by(SentimentSnapshot.date.asc())
+        .filter(Mention.ticker == ticker, Mention.published_at >= since)
+        .group_by(func.date(Mention.published_at))
+        .order_by(func.date(Mention.published_at))
         .all()
     )
 
-    # Build a full date range (fill missing days with None)
-    date_map = {s.date: s for s in snapshots}
-    result = []
-    for i in range(days):
-        d = today - _dt.timedelta(days=days - 1 - i)
-        snap = date_map.get(d)
-        result.append({
-            "date":            d.isoformat(),
-            "score":           snap.score if snap else None,
-            "mention_count":   snap.mention_count if snap else 0,
-            "avg_credibility": snap.avg_credibility if snap else None,
-        })
-
-    return jsonify(result)
+    return jsonify([
+        {
+            "date": str(row.day),
+            "score": round(float(row.avg_score), 4),
+            "count": row.count,
+        }
+        for row in rows
+    ])
 
 
 @stocks_bp.route("/<ticker>/chart")
@@ -751,6 +745,38 @@ def stock_mentions(ticker: str):
 
     mentions.sort(key=lambda m: m.published_at, reverse=True)
     return jsonify([_mention_to_dict(m) for m in mentions])
+
+
+# ─── Compare ─────────────────────────────────────────────────────────────────
+
+@stocks_bp.route("/compare")
+def compare_stocks():
+    """Return sentiment data for multiple tickers for comparison."""
+    tickers_param = request.args.get("tickers", "")
+    tickers = [t.strip().upper() for t in tickers_param.split(",") if t.strip()][:3]
+    if not tickers:
+        return jsonify({"error": "Provide 1-3 tickers"}), 400
+
+    results = []
+    for ticker in tickers:
+        since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7)
+        mentions = Mention.query.filter(
+            Mention.ticker == ticker,
+            Mention.published_at >= since,
+        ).all()
+
+        scored = [m for m in mentions if m.sentiment_score is not None]
+        avg_sentiment = sum(m.sentiment_score for m in scored) / len(scored) if scored else 0
+        reddit_count = sum(1 for m in mentions if m.source_type == "reddit")
+
+        results.append({
+            "ticker": ticker,
+            "mention_count": len(mentions),
+            "avg_sentiment": round(avg_sentiment, 4),
+            "reddit_mentions": reddit_count,
+        })
+
+    return jsonify(results)
 
 
 # ─── Stock Detail ─────────────────────────────────────────────────────────────
@@ -850,6 +876,13 @@ def stock_detail(ticker: str):
         entry["news"] = sent_by_day.get(day)
         entry["overall"] = sent_by_day.get(day)
 
+    # Reddit mention count for the last 7 days
+    reddit_count = Mention.query.filter(
+        Mention.ticker == ticker,
+        Mention.source_type == 'reddit',
+        Mention.published_at >= datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=7),
+    ).count()
+
     # Pull name from fundamentals if Finnhub returned it
     name = fundamentals.get("name")
 
@@ -882,6 +915,7 @@ def stock_detail(ticker: str):
             "news_count": sentiment_count,
         },
         "mention_count": len(all_scored_mentions),
+        "reddit_mentions_7d": reddit_count,
         "history": history,
         "mentions": [_mention_to_dict(m) for m in mentions],
     })

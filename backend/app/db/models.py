@@ -223,3 +223,48 @@ class CommentVote(db.Model):
     user_id    = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"),
                            nullable=False)
     value      = db.Column(db.SmallInteger, nullable=False)
+
+
+# ── Portfolio ─────────────────────────────────────────────────────────────────
+
+class Portfolio(db.Model):
+    __tablename__ = "portfolios"
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    items      = db.relationship("PortfolioItem", backref="portfolio", lazy=True, cascade="all, delete-orphan")
+
+class PortfolioItem(db.Model):
+    __tablename__ = "portfolio_items"
+    __table_args__ = (db.UniqueConstraint("portfolio_id", "ticker", name="uq_portfolio_ticker"),)
+    id           = db.Column(db.Integer, primary_key=True)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolios.id", ondelete="CASCADE"), nullable=False)
+    ticker       = db.Column(db.String(16), nullable=False)
+    shares       = db.Column(db.Float, nullable=False, default=0)
+    avg_cost     = db.Column(db.Float, nullable=False, default=0)   # average cost per share
+    added_at     = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ── Price Alerts ──────────────────────────────────────────────────────────────
+
+class PriceAlert(db.Model):
+    __tablename__ = "price_alerts"
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    ticker       = db.Column(db.String(16), nullable=False)
+    target_price = db.Column(db.Float, nullable=False)
+    direction    = db.Column(db.String(5), nullable=False)  # 'above' or 'below'
+    triggered    = db.Column(db.Boolean, default=False, nullable=False)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+    triggered_at = db.Column(db.DateTime, nullable=True)
+
+
+# ── Follow System ─────────────────────────────────────────────────────────────
+
+class Follow(db.Model):
+    __tablename__ = "follows"
+    __table_args__ = (db.UniqueConstraint("follower_id", "following_id", name="uq_follow"),)
+    id           = db.Column(db.Integer, primary_key=True)
+    follower_id  = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    following_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at   = db.Column(db.DateTime, default=datetime.utcnow)

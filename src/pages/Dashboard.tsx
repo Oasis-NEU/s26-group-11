@@ -640,10 +640,10 @@ function HeroCard({ mention }: { mention: Mention }) {
       {/* Full-width accent line at top */}
       <div className="h-[3px] w-full mb-6" style={{ backgroundColor: 'var(--accent)' }} />
 
-      <div className="flex gap-6">
+      <div className="flex gap-4 sm:gap-6">
         <div className="flex-1 min-w-0">
           {/* Source badge + ticker + price */}
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <div className="flex items-center gap-2 mb-3 sm:mb-4 flex-wrap">
             {/* Large filled source badge */}
             <span
               className="inline-block px-3 py-1 text-[10px] font-black uppercase tracking-widest"
@@ -740,7 +740,7 @@ function StreamCard({ mention }: { mention: Mention }) {
     <motion.article
       variants={itemVariants}
       whileHover={{ x: 3, transition: { duration: 0.12 } }}
-      className="flex gap-4 border-b py-4"
+      className="flex gap-3 sm:gap-4 border-b py-3 sm:py-4"
       style={{
         borderColor: 'var(--border)',
         borderLeft: isHighCred ? '2px solid var(--accent)' : undefined,
@@ -748,8 +748,8 @@ function StreamCard({ mention }: { mention: Mention }) {
       }}
     >
       {/* Thumbnail with source label overlaid */}
-      <div className="shrink-0 relative" style={{ width: 80, height: 80 }}>
-        <ArticleThumbnail domain={domain} size={80} />
+      <div className="shrink-0 relative" style={{ width: 64, height: 64 }}>
+        <ArticleThumbnail domain={domain} size={64} />
         <span
           className="absolute bottom-0 left-0 right-0 text-center leading-none py-0.5"
           style={{
@@ -1446,7 +1446,7 @@ export function Dashboard() {
     <div>
       {/* Ticker tape */}
       {!hidden.includes('tickertape') && (
-        <div className="-mx-5 mb-8">
+        <div className="-mx-3 sm:-mx-5 mb-6 sm:mb-8">
           <TickerTape />
         </div>
       )}

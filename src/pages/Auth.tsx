@@ -63,7 +63,7 @@ function OtpInput({ value, onChange }: { value: string; onChange: (v: string) =>
           onChange={e => handleChange(i, e)}
           onKeyDown={e => handleKeyDown(i, e)}
           onClick={() => refs.current[i]?.select()}
-          className="w-10 h-12 text-center text-xl font-black border bg-transparent outline-none transition-colors focus:border-[var(--accent)]"
+          className="w-9 h-11 sm:w-10 sm:h-12 text-center text-lg sm:text-xl font-black border bg-transparent outline-none transition-colors focus:border-[var(--accent)]"
           style={{
             borderColor: digits[i] ? 'var(--accent)' : 'var(--border)',
             color: 'var(--text-primary)',
@@ -153,7 +153,7 @@ export function Auth() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="relative min-h-screen flex flex-col items-center justify-center px-5"
+      className="relative min-h-screen flex flex-col items-center justify-center px-4 sm:px-5 overflow-x-hidden"
       style={{ backgroundColor: 'var(--bg-page)' }}
     >
       {/* Accent stripe */}
