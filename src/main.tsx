@@ -7,8 +7,11 @@ import App from './App.tsx'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 60_000,
+      staleTime: 300_000,       // 5 min — don't re-fetch if data is fresh
+      gcTime: 600_000,          // 10 min — keep in cache while browsing
       retry: 1,
+      refetchOnWindowFocus: false,  // don't hammer the API on every tab switch
+      refetchOnMount: false,        // rely on stale-time, not mount events
     },
   },
 })
