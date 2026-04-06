@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { login, register, forgotPassword, registerRequest, registerVerify } from '../api/auth';
 import { useAuth } from '../store/useAuth';
+import WelcomeScreen from '../components/WelcomeScreen';
 
 const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
 
@@ -89,6 +90,8 @@ export function Auth() {
   const [pendingToken, setPendingToken] = useState('');
   const [devOtp, setDevOtp] = useState('');
   const [otpValue, setOtpValue] = useState('');
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeUsername, setWelcomeUsername] = useState('');
   const { setAuth, setProfile } = useAuth();
   const navigate = useNavigate();
 
@@ -117,7 +120,8 @@ export function Auth() {
         if ('email' in res) {
           setAuth(res.email, res.username);
           setProfile({ first_name: res.first_name, last_name: res.last_name, bio: res.bio, avatar_url: res.avatar_url });
-          navigate('/app');
+          setWelcomeUsername(username || email.split('@')[0]);
+          setShowWelcome(true);
           return;
         }
         setPendingToken(res.token);
@@ -142,7 +146,8 @@ export function Auth() {
       const result = await registerVerify(pendingToken, otpValue);
       setAuth(result.email, result.username);
       setProfile({ first_name: result.first_name, last_name: result.last_name, bio: result.bio, avatar_url: result.avatar_url });
-      navigate('/app');
+      setWelcomeUsername(result.username || email.split('@')[0]);
+      setShowWelcome(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Something went wrong. Please try again.');
@@ -392,6 +397,13 @@ export function Auth() {
           )}
         </AnimatePresence>
       </div>
+
+      {showWelcome && (
+        <WelcomeScreen
+          username={welcomeUsername}
+          onDone={() => navigate('/app')}
+        />
+      )}
     </motion.div>
   );
 }
