@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Settings, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,10 +23,15 @@ export function Navbar() {
   const dateDisplay = useDateDisplay();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // Close mobile menu on route change
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+
   const NAV_LINKS = [
     { label: 'Feed',         path: '/app' },
     { label: 'Discuss',      path: '/app/discuss' },
     { label: 'Watchlist',    path: '/app/watchlists' },
+    { label: 'Portfolio',    path: '/app/portfolio' },
+    { label: 'Compare',      path: '/app/compare' },
     { label: 'How It Works', path: '/app/how-it-works' },
   ];
 
@@ -58,7 +63,7 @@ export function Navbar() {
 
             {/* Nav links with sliding indicator */}
             <nav className="flex items-center">
-              {NAV_LINKS.slice(0, 3).map(({ label, path }) => {
+              {NAV_LINKS.slice(0, 5).map(({ label, path }) => {
                 const active = path === '/app'
                   ? location.pathname === '/app'
                   : location.pathname.startsWith(path);
@@ -194,8 +199,8 @@ export function Navbar() {
 
       {/* Secondary sub-nav */}
       <div className="border-b" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
-        <div className="mx-auto flex h-8 max-w-screen-xl items-center justify-between px-5">
-          <div className="flex items-center gap-0 overflow-x-auto">
+        <div className="mx-auto flex h-8 max-w-screen-xl items-center justify-between px-3 sm:px-5">
+          <div className="flex items-center gap-0 overflow-x-auto scrollbar-none min-w-0">
             {MARKET_SECTIONS.map((section, i) => (
               <span
                 key={section}

@@ -62,6 +62,7 @@ export interface StockDetail {
   volume: number | null;
   exchange: string | null;
   mention_count: number;
+  reddit_mentions_7d: number;
   fundamentals: Fundamentals;
   sentiment: {
     overall: number | null;
@@ -101,6 +102,12 @@ export interface SentimentSnapshotPoint {
   score: number | null;
   mention_count: number;
   avg_credibility: number | null;
+}
+
+export interface SentimentPoint {
+  date: string;   // YYYY-MM-DD
+  score: number;  // -1 to 1
+  count: number;
 }
 
 export const getTrending = () =>
@@ -154,6 +161,10 @@ export const getSentimentHistory = (symbol: string, days = 7) =>
     .get<SentimentSnapshotPoint[]>(`/api/stocks/${symbol}/sentiment-history`, { params: { days } })
     .then((r) => r.data);
 
+export const getSentimentTrend = (ticker: string, days = 30) =>
+  client.get<SentimentPoint[]>(`/api/stocks/${ticker}/sentiment-history`, { params: { days } })
+    .then((r) => r.data);
+
 export interface SentimentSummary {
   ticker: string;
   overall_score: number | null;
@@ -196,3 +207,14 @@ export interface RedditPulse {
 
 export const getRedditPulse = (symbol: string) =>
   client.get<RedditPulse>(`/api/stocks/${symbol}/reddit-pulse`).then((r) => r.data);
+
+export interface CompareResult {
+  ticker: string;
+  mention_count: number;
+  avg_sentiment: number;
+  reddit_mentions: number;
+}
+
+export const compareStocks = (tickers: string[]) =>
+  client.get<CompareResult[]>('/api/stocks/compare', { params: { tickers: tickers.join(',') } })
+    .then((r) => r.data);

@@ -240,7 +240,7 @@ function ThreadCard({ thread, currentUsername, isLoggedIn }: {
       layout
       variants={staggerItem}
       whileHover={{ x: 3, transition: { duration: 0.12 } }}
-      className="border-b py-4 flex gap-4"
+      className="border-b py-3 sm:py-4 flex gap-3 sm:gap-4"
       style={{ borderColor: 'var(--border)' }}
     >
       {/* Avatar column */}
@@ -353,9 +353,9 @@ export function Discuss() {
       className="space-y-6"
     >
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight" style={{ color: 'var(--text-primary)' }}>
             Discussion
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: 'var(--text-muted)' }}>

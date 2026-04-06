@@ -10,7 +10,7 @@ export function Layout() {
 
   return (
     <motion.div
-      className="relative min-h-screen flex flex-col"
+      className="relative min-h-screen flex flex-col overflow-x-hidden"
       style={{ backgroundColor: 'var(--bg-page)' }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -25,7 +25,7 @@ export function Layout() {
         Sub-route content renders instantly; the landing→app shell transition
         provides all the smoothness the user needs.
       */}
-      <main key={location.pathname} className="mx-auto w-full max-w-screen-xl px-5 py-8 flex-1">
+      <main key={location.pathname} className="mx-auto w-full max-w-screen-xl px-3 sm:px-5 py-6 sm:py-8 flex-1">
         <Outlet />
       </main>
       <Footer />

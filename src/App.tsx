@@ -18,6 +18,9 @@ const Discuss       = lazy(() => import('./pages/Discuss').then(m => ({ default:
 const ThreadDetail  = lazy(() => import('./pages/ThreadDetail').then(m => ({ default: m.ThreadDetail })));
 const Feedback      = lazy(() => import('./pages/Feedback').then(m => ({ default: m.Feedback })));
 const HowItWorks    = lazy(() => import('./pages/HowItWorks').then(m => ({ default: m.HowItWorks })));
+const Compare       = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
+const Portfolio     = lazy(() => import('./pages/Portfolio').then(m => ({ default: m.Portfolio })));
+const Alerts        = lazy(() => import('./pages/Alerts').then(m => ({ default: m.Alerts })));
 
 function ThemeSync() {
   const theme = useTheme(s => s.theme);
@@ -79,6 +82,9 @@ function AnimatedRoutes() {
           <Route path="users/:username" element={<UserProfile />} />
           <Route path="feedback" element={<Feedback />} />
           <Route path="how-it-works" element={<HowItWorks />} />
+          <Route path="compare" element={<Compare />} />
+          <Route path="portfolio" element={<Portfolio />} />
+          <Route path="alerts" element={<Alerts />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

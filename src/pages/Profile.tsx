@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../store/useToast';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Check, Eye, EyeOff, AlignCenter, AlignJustify, Sun, Moon, Camera, Trash2 } from 'lucide-react';
+import { Check, Eye, EyeOff, AlignCenter, AlignJustify, Sun, Moon, Camera, Trash2, Bell } from 'lucide-react';
 import { getMe, updateProfile } from '../api/auth';
 import { useAuth } from '../store/useAuth';
+import { getFollowers, getFollowing } from '../api/users';
 import { usePreferences, applyPreferences } from '../store/usePreferences';
 import { useTheme } from '../store/useTheme';
 import { staggerContainer, staggerItem } from '../components/PageEnter';
@@ -93,6 +94,20 @@ export function Profile() {
     queryKey: ['me'],
     queryFn: getMe,
     enabled: loggedIn,
+  });
+
+  const myId = me?.id ?? null;
+
+  const { data: myFollowers } = useQuery({
+    queryKey: ['followers', myId],
+    queryFn: () => getFollowers(myId!),
+    enabled: !!myId,
+  });
+
+  const { data: myFollowing } = useQuery({
+    queryKey: ['following', myId],
+    queryFn: () => getFollowing(myId!),
+    enabled: !!myId,
   });
 
   // Hydrate store AND local form state from server on first load
@@ -290,6 +305,9 @@ export function Profile() {
           <p className={storedFirstName ? 'text-xs' : 'text-lg font-black'}
              style={{ color: storedFirstName ? 'var(--text-muted)' : 'var(--text-primary)', ...MONO }}>
             @{storedUsername ?? me?.username ?? '—'}
+          </p>
+          <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)', ...MONO }}>
+            {myFollowers?.length ?? 0} followers · {myFollowing?.length ?? 0} following
           </p>
           {avatarError && (
             <p className="text-[10px] mt-0.5 uppercase tracking-widest" style={{ color: 'var(--red)', ...MONO }}>
@@ -549,6 +567,18 @@ export function Profile() {
             );
           })}
         </div>
+      </Section>
+
+      {/* ── Quick Links ────────────────────────────────────────────────────── */}
+      <Section title="Quick Links">
+        <Link
+          to="/app/alerts"
+          className="inline-flex items-center gap-2 px-4 py-2.5 border transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', ...MONO }}
+        >
+          <Bell size={13} />
+          <span className="text-[10px] font-bold uppercase tracking-widest">Price Alerts</span>
+        </Link>
       </Section>
 
       {/* ── Session ────────────────────────────────────────────────────────── */}

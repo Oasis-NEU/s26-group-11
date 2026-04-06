@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Monitor, AlignJustify, AlignCenter, Eye, EyeOff } from 'lucide-react';
+import { X, Check, Monitor, AlignJustify, AlignCenter, Eye, EyeOff, Bell } from 'lucide-react';
 import { usePreferences, applyPreferences } from '../store/usePreferences';
 import { useAuth } from '../store/useAuth';
 
@@ -249,6 +250,19 @@ export function SettingsDrawer({ open, onClose }: Props) {
                     );
                   })}
                 </div>
+              </Section>
+
+              {/* ── Price Alerts link ────────────────────────────── */}
+              <Section title="Alerts">
+                <Link
+                  to="/app/alerts"
+                  onClick={onClose}
+                  className="flex items-center gap-2 px-3 py-2.5 border transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                  style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', display: 'inline-flex' }}
+                >
+                  <Bell size={13} />
+                  <span className="text-[10px] font-bold uppercase tracking-widest" style={MONO}>Price Alerts</span>
+                </Link>
               </Section>
 
               {/* ── Personalized feed note ───────────────────────── */}

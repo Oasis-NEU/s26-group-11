@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, ExternalLink, Bookmark, BookmarkCheck } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, ExternalLink, Bookmark, BookmarkCheck, MessageSquare } from 'lucide-react';
 import { getWatchlist, addToWatchlist, removeFromWatchlist } from '../api/watchlist';
 import { useAuth } from '../store/useAuth';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  AreaChart, Area,
+  AreaChart, Area, ReferenceLine,
 } from 'recharts';
-import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentSummary, getRedditPulse, searchStocks, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentSummary, type RedditPulse } from '../api/stocks';
+import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentTrend, getSentimentSummary, getRedditPulse, searchStocks, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentPoint, type SentimentSummary, type RedditPulse } from '../api/stocks';
 import { getThreads, type Thread } from '../api/discuss';
 import { trackClick } from '../api/preferences';
 import { usePreferences } from '../store/usePreferences';
@@ -93,7 +93,7 @@ function FundamentalsGrid({ f }: { f: Fundamentals }) {
 
   return (
     <div className="rounded-lg border p-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
-      <div className="grid grid-cols-3 divide-x divide-y" style={{ borderColor: 'var(--border)' }}>
+      <div className="grid grid-cols-2 md:grid-cols-3 divide-x divide-y" style={{ borderColor: 'var(--border)' }}>
         {rows.map(([label, value]) => (
           <div key={label} className="flex items-center justify-between px-3 py-2 gap-2">
             <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{label}</span>
@@ -135,9 +135,9 @@ function PriceChart({ symbol, isUp, defaultPeriod = '1M' }: { symbol: string; is
 
   return (
     <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Price Chart</h2>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {CHART_PERIODS.map((p) => (
             <button
               key={p}
@@ -757,6 +757,7 @@ function TickerNotFound({ symbol }: { symbol: string }) {
 export function StockDetail() {
   const { symbol } = useParams<{ symbol: string }>();
   const [sourceTab, setSourceTab] = useState<SourceTab>('all');
+  const [sentimentDays, setSentimentDays] = useState(30);
   const { isLoggedIn } = useAuth();
   const queryClient = useQueryClient();
   const prefs = usePreferences();
@@ -799,6 +800,13 @@ export function StockDetail() {
     queryFn: () => getRedditPulse(symbol!),
     enabled: !!symbol && !stockLoading && !stockError,
     staleTime: 5 * 60_000,
+  });
+
+  const { data: sentimentTrend } = useQuery({
+    queryKey: ['sentiment-history', symbol, sentimentDays],
+    queryFn: () => getSentimentTrend(symbol!, sentimentDays),
+    enabled: !!symbol,
+    staleTime: 10 * 60_000,
   });
 
   // Compute delta: today's score vs yesterday's score
@@ -862,13 +870,19 @@ export function StockDetail() {
       {stock && !isNotFound && (
         <>
           {/* Title + price */}
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+              <h1 className="text-xl sm:text-2xl font-semibold tracking-tight" style={{ color: 'var(--text-primary)' }}>
                 {stock.symbol}
               </h1>
               {stock.name && (
                 <p className="mt-0.5 text-sm" style={{ color: 'var(--text-muted)' }}>{stock.name}</p>
+              )}
+              {stock.reddit_mentions_7d > 0 && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--text-muted)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                  <MessageSquare className="h-3 w-3" />
+                  <span>{stock.reddit_mentions_7d} Reddit mentions (7d)</span>
+                </div>
               )}
             </div>
             <div className="flex items-start gap-3">
@@ -911,6 +925,101 @@ export function StockDetail() {
           {/* Price chart */}
           <PriceChart symbol={stock.symbol} isUp={(stock.change_pct ?? 0) >= 0} defaultPeriod={prefs.default_timeframe as ChartPeriod} />
 
+          {/* Sentiment Trend Chart */}
+          {(() => {
+            const MONO_T: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
+            const trendData = (sentimentTrend ?? []) as SentimentPoint[];
+            const totalArticles = trendData.reduce((s, p) => s + p.count, 0);
+            return (
+              <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                      Sentiment Trend
+                    </h2>
+                    {trendData.length > 0 && (
+                      <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted)', ...MONO_T }}>
+                        {totalArticles} articles
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    {([7, 30, 90] as const).map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setSentimentDays(d)}
+                        className="rounded px-2 py-0.5 text-xs font-medium transition-colors"
+                        style={{
+                          backgroundColor: sentimentDays === d ? 'var(--bg-elevated)' : 'transparent',
+                          color: sentimentDays === d ? 'var(--text-primary)' : 'var(--text-muted)',
+                          border: '1px solid',
+                          borderColor: sentimentDays === d ? 'var(--border-hover)' : 'transparent',
+                          ...MONO_T,
+                        }}
+                      >
+                        {d === 7 ? '7D' : d === 30 ? '30D' : '90D'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {trendData.length === 0 ? (
+                  <p className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                    No sentiment data for this period
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={trendData} margin={{ top: 8, right: 4, bottom: 0, left: -28 }}>
+                      <defs>
+                        <linearGradient id={`sent-grad-${stock.symbol}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25} />
+                          <stop offset="50%" stopColor="#22c55e" stopOpacity={0.05} />
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0.15} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                        tickFormatter={(v: string) => {
+                          const d = new Date(v);
+                          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                        }}
+                      />
+                      <YAxis
+                        domain={[-1, 1]}
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: number) => v.toFixed(1)}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+                        labelStyle={{ color: 'var(--text-muted)' }}
+                        formatter={(v: number, _name: string, props: { payload?: SentimentPoint }) => [
+                          `${v > 0 ? '+' : ''}${v.toFixed(3)}`,
+                          `Sentiment (${props.payload?.count ?? 0} articles)`,
+                        ]}
+                      />
+                      <ReferenceLine y={0} stroke="var(--border-hover)" strokeDasharray="3 3" />
+                      <Area
+                        type="monotone"
+                        dataKey="score"
+                        stroke="#22c55e"
+                        strokeWidth={1.5}
+                        fill={`url(#sent-grad-${stock.symbol})`}
+                        dot={false}
+                        connectNulls
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Fundamentals */}
           {stock.fundamentals && <FundamentalsGrid f={stock.fundamentals} />}
 
@@ -942,15 +1051,15 @@ export function StockDetail() {
           {/* 7-day sentiment trend chart */}
           {chartData.length > 0 && (
             <div className={`rounded-lg border p-5 transition-colors ${cardHover}`} style={cardStyle}>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                 <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>7-Day Sentiment Trend</h2>
                 {sentimentDelta !== null && (
-                  <div className="flex items-center gap-1.5 text-xs">
+                  <div className="flex items-center gap-1 sm:gap-1.5 text-xs flex-wrap">
                     <span style={{ color: 'var(--text-muted)' }}>vs yesterday:</span>
                     <span className="font-semibold tabular-nums" style={{ color: sentimentDelta >= 0 ? '#22c55e' : '#ef4444' }}>
                       {sentimentDelta > 0 ? '+' : ''}{sentimentDelta.toFixed(3)}
                     </span>
-                    <span style={{ color: 'var(--text-muted)' }}>({sentimentDelta >= 0 ? 'improving' : 'declining'})</span>
+                    <span className="hidden sm:inline" style={{ color: 'var(--text-muted)' }}>({sentimentDelta >= 0 ? 'improving' : 'declining'})</span>
                   </div>
                 )}
               </div>
@@ -971,9 +1080,9 @@ export function StockDetail() {
 
           {/* Mentions */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>News &amp; Mentions</h2>
-              <div className="flex gap-1">
+              <div className="flex gap-1 flex-wrap">
                 {SOURCE_TABS.map((tab) => (
                   <button
                     key={tab}
@@ -995,7 +1104,7 @@ export function StockDetail() {
             {mentionsLoading && (
               <div className="space-y-3 animate-pulse">
                 <div className="h-36 rounded-lg" style={{ backgroundColor: 'var(--bg-surface)' }} />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="h-28 rounded-lg" style={{ backgroundColor: 'var(--bg-surface)' }} />
                   ))}

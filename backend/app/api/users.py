@@ -1,6 +1,9 @@
 from flask import Blueprint, jsonify
 
-from app.db.models import User, Thread, WatchlistList, WatchlistListItem
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
+from app.db.models import User, Thread, WatchlistList, WatchlistListItem, Follow
+from app.extensions import db
 
 users_bp = Blueprint("users", __name__)
 
@@ -54,6 +57,7 @@ def get_public_profile(username: str):
     )
 
     return jsonify({
+        "id":           user.id,
         "username":     user.username,
         "display_name": _display_name(user),
         "first_name":   user.first_name,
@@ -73,3 +77,57 @@ def get_public_profile(username: str):
             for wl in public_lists
         ],
     })
+
+
+@users_bp.route("/<int:uid>/follow", methods=["POST"])
+@jwt_required()
+def follow_user(uid: int):
+    me = int(get_jwt_identity())
+    if me == uid:
+        return jsonify({"error": "Cannot follow yourself"}), 400
+    if not User.query.get(uid):
+        return jsonify({"error": "User not found"}), 404
+    existing = Follow.query.filter_by(follower_id=me, following_id=uid).first()
+    if existing:
+        return jsonify({"following": True})
+    db.session.add(Follow(follower_id=me, following_id=uid))
+    db.session.commit()
+    return jsonify({"following": True})
+
+
+@users_bp.route("/<int:uid>/follow", methods=["DELETE"])
+@jwt_required()
+def unfollow_user(uid: int):
+    me = int(get_jwt_identity())
+    existing = Follow.query.filter_by(follower_id=me, following_id=uid).first()
+    if existing:
+        db.session.delete(existing)
+        db.session.commit()
+    return jsonify({"following": False})
+
+
+@users_bp.route("/<int:uid>/followers", methods=["GET"])
+def get_followers(uid: int):
+    follows = Follow.query.filter_by(following_id=uid).all()
+    follower_ids = [f.follower_id for f in follows]
+    users = User.query.filter(User.id.in_(follower_ids)).all() if follower_ids else []
+    return jsonify([{"id": u.id, "username": u.username} for u in users])
+
+
+@users_bp.route("/<int:uid>/following", methods=["GET"])
+def get_following(uid: int):
+    follows = Follow.query.filter_by(follower_id=uid).all()
+    following_ids = [f.following_id for f in follows]
+    users = User.query.filter(User.id.in_(following_ids)).all() if following_ids else []
+    return jsonify([{"id": u.id, "username": u.username} for u in users])
+
+
+@users_bp.route("/<int:uid>/follow/status", methods=["GET"])
+@jwt_required(optional=True)
+def follow_status(uid: int):
+    me_str = get_jwt_identity()
+    if not me_str:
+        return jsonify({"following": False})
+    me = int(me_str)
+    existing = Follow.query.filter_by(follower_id=me, following_id=uid).first()
+    return jsonify({"following": bool(existing)})

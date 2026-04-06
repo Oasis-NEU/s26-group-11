@@ -48,6 +48,8 @@ def create_app():
     from app.api.discuss import discuss_bp
     from app.api.preferences import prefs_bp
     from app.api.users import users_bp
+    from app.api.portfolio import portfolio_bp
+    from app.api.alerts import alerts_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(news_bp)
@@ -57,6 +59,8 @@ def create_app():
     app.register_blueprint(discuss_bp, url_prefix="/api/discuss")
     app.register_blueprint(prefs_bp, url_prefix="/api/user")
     app.register_blueprint(users_bp, url_prefix="/api/users")
+    app.register_blueprint(portfolio_bp, url_prefix="/api/portfolio")
+    app.register_blueprint(alerts_bp, url_prefix="/api/alerts")
 
     with app.app_context():
         from app.db import models  # noqa: F401
