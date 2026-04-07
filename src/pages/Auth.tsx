@@ -1,80 +1,14 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { login, register, forgotPassword, registerRequest, registerVerify } from '../api/auth';
+import { motion } from 'framer-motion';
+import { login, register, forgotPassword, registerRequest } from '../api/auth';
 import { useAuth } from '../store/useAuth';
 import WelcomeScreen from '../components/WelcomeScreen';
 
 const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
 
-type Mode = 'login' | 'register' | 'forgot' | 'verify';
+type Mode = 'login' | 'register' | 'forgot';
 
-function OtpInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const refs = useRef<(HTMLInputElement | null)[]>([]);
-  const digits = Array.from({ length: 6 }, (_, i) => value[i] || '');
-
-  function handleChange(i: number, e: React.ChangeEvent<HTMLInputElement>) {
-    const char = e.target.value.replace(/\D/g, '').slice(-1);
-    if (!char) return;
-    const next = [...digits];
-    next[i] = char;
-    onChange(next.join(''));
-    if (i < 5) refs.current[i + 1]?.focus();
-  }
-
-  function handleKeyDown(i: number, e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Backspace') {
-      e.preventDefault();
-      if (digits[i]) {
-        const next = [...digits];
-        next[i] = '';
-        onChange(next.join('').replace(/\s/g, ''));
-      } else if (i > 0) {
-        const next = [...digits];
-        next[i - 1] = '';
-        onChange(next.join('').replace(/\s/g, ''));
-        refs.current[i - 1]?.focus();
-      }
-    } else if (e.key === 'ArrowLeft' && i > 0) {
-      refs.current[i - 1]?.focus();
-    } else if (e.key === 'ArrowRight' && i < 5) {
-      refs.current[i + 1]?.focus();
-    }
-  }
-
-  function handlePaste(e: React.ClipboardEvent) {
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted) {
-      onChange(pasted.padEnd(6, '').slice(0, 6).replace(/\s/g, ''));
-      refs.current[Math.min(pasted.length, 5)]?.focus();
-    }
-    e.preventDefault();
-  }
-
-  return (
-    <div className="flex gap-2 justify-between" onPaste={handlePaste}>
-      {Array.from({ length: 6 }).map((_, i) => (
-        <input
-          key={i}
-          ref={el => { refs.current[i] = el; }}
-          type="text"
-          inputMode="numeric"
-          maxLength={1}
-          value={digits[i]}
-          onChange={e => handleChange(i, e)}
-          onKeyDown={e => handleKeyDown(i, e)}
-          onClick={() => refs.current[i]?.select()}
-          className="w-9 h-11 sm:w-10 sm:h-12 text-center text-lg sm:text-xl font-black border bg-transparent outline-none transition-colors focus:border-[var(--accent)]"
-          style={{
-            borderColor: digits[i] ? 'var(--accent)' : 'var(--border)',
-            color: 'var(--text-primary)',
-            fontFamily: '"IBM Plex Mono", monospace',
-          }}
-        />
-      ))}
-    </div>
-  );
-}
 
 export function Auth() {
   const [searchParams] = useSearchParams();
@@ -87,9 +21,6 @@ export function Auth() {
   const [success, setSuccess] = useState('');
   const [devToken, setDevToken] = useState('');
   const [loading, setLoading] = useState(false);
-  const [pendingToken, setPendingToken] = useState('');
-  const [devOtp, setDevOtp] = useState('');
-  const [otpValue, setOtpValue] = useState('');
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeUsername, setWelcomeUsername] = useState('');
   const { setAuth, setProfile } = useAuth();
@@ -116,7 +47,7 @@ export function Auth() {
       }
       if (mode === 'register') {
         const res = await registerRequest(email, password, username || undefined);
-        // If email sending failed, backend creates account directly and returns user data
+        // Backend creates account directly and returns user data
         if ('email' in res) {
           setAuth(res.email, res.username);
           setProfile({ first_name: res.first_name, last_name: res.last_name, bio: res.bio, avatar_url: res.avatar_url });
@@ -124,30 +55,8 @@ export function Auth() {
           setShowWelcome(true);
           return;
         }
-        setPendingToken(res.token);
-        if (res.dev_otp) setDevOtp(res.dev_otp);
-        setMode('verify');
         return;
       }
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Something went wrong. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleVerify(e: React.FormEvent) {
-    e.preventDefault();
-    if (otpValue.length < 6) { setError('Please enter all 6 digits.'); return; }
-    setError('');
-    setLoading(true);
-    try {
-      const result = await registerVerify(pendingToken, otpValue);
-      setAuth(result.email, result.username);
-      setProfile({ first_name: result.first_name, last_name: result.last_name, bio: result.bio, avatar_url: result.avatar_url });
-      setWelcomeUsername(result.username || email.split('@')[0]);
-      setShowWelcome(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? 'Something went wrong. Please try again.');
@@ -187,13 +96,11 @@ export function Auth() {
             SentimentSignal
           </h1>
           <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
-            {mode === 'verify' ? 'Verify your email' : mode === 'login' ? 'Sign in to your account' : mode === 'register' ? 'Create your account' : 'Reset your password'}
+            {mode === 'login' ? 'Sign in to your account' : mode === 'register' ? 'Create your account' : 'Reset your password'}
           </p>
         </div>
 
-        <AnimatePresence mode="wait">
-          {mode !== 'verify' && (
-            <motion.div
+        <motion.div
               key="main-form"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -337,65 +244,6 @@ export function Auth() {
                 </button>
               )}
             </motion.div>
-          )}
-
-          {mode === 'verify' && (
-            <motion.div
-              key="verify-form"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              <form onSubmit={handleVerify} className="space-y-6">
-                <div className="text-center space-y-1">
-                  <p className="text-xs font-semibold" style={{ color: 'var(--text-primary)', ...MONO }}>
-                    Check your inbox
-                  </p>
-                  <p className="text-[11px]" style={{ color: 'var(--text-muted)', ...MONO }}>
-                    We sent a 6-digit code to <span style={{ color: 'var(--text-primary)' }}>{email}</span>
-                  </p>
-                </div>
-
-                {devOtp && (
-                  <div className="border px-3 py-2 text-center" style={{ borderColor: 'var(--accent)44', backgroundColor: 'var(--accent)11' }}>
-                    <p className="text-[9px] uppercase tracking-widest mb-1" style={{ color: 'var(--text-muted)', ...MONO }}>
-                      Dev mode — email not configured
-                    </p>
-                    <p className="text-lg font-black tracking-[0.3em]" style={{ color: 'var(--accent)', ...MONO }}>{devOtp}</p>
-                  </div>
-                )}
-
-                <OtpInput value={otpValue} onChange={setOtpValue} />
-
-                {error && (
-                  <p className="text-[11px] py-2 px-3 border" style={{ color: 'var(--red)', borderColor: 'var(--red)', ...MONO }}>
-                    {error}
-                  </p>
-                )}
-
-                <motion.button
-                  type="submit"
-                  disabled={loading || otpValue.length < 6}
-                  whileTap={{ scale: 0.97 }}
-                  className="w-full py-3 text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--accent)', color: 'var(--bg-page)', ...MONO }}
-                >
-                  {loading ? 'Verifying...' : 'Verify & Create Account'}
-                </motion.button>
-
-                <button
-                  type="button"
-                  onClick={() => { setMode('register'); setError(''); setOtpValue(''); setPendingToken(''); setDevOtp(''); }}
-                  className="w-full text-center text-[10px] transition-colors hover:text-[var(--accent)]"
-                  style={{ color: 'var(--text-muted)', ...MONO }}
-                >
-                  ← Back / resend
-                </button>
-              </form>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {showWelcome && (
