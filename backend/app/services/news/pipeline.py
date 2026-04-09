@@ -250,8 +250,12 @@ def _is_relevant(title: str, summary: str | None, ticker: str,
         if noise in title_lower:
             return False
 
-    # Explicit notation anywhere → always accept (strong unambiguous signal)
+    # Explicit notation anywhere → accept, UNLESS this is a multi-ticker post
+    # (e.g. "$SPY $AMZN $AAPL $META $MU ..." — not useful signal for any one stock).
     if f"${t}" in text or f"({t})" in text:
+        unique_tickers = len(_re.findall(r'\$[A-Z]{1,6}', text))
+        if unique_tickers >= 4:
+            return False   # multi-ticker noise
         return True
 
     # Must have at least one finance keyword in the combined text
