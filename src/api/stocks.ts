@@ -58,6 +58,9 @@ export interface StockDetail {
   name: string | null;
   price: number | null;
   change_pct: number | null;
+  post_market_price: number | null;
+  pre_market_price: number | null;
+  ext_change_pct: number | null;
   market_cap: number | null;
   volume: number | null;
   exchange: string | null;

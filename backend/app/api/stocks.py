@@ -15,6 +15,30 @@ from app.services.sentiment import label as sentiment_label, weighted_aggregate
 stocks_bp = Blueprint("stocks", __name__)
 
 
+def _get_extended_hours(ticker: str) -> dict:
+    """Return pre/post-market price and change% from yfinance fast_info."""
+    try:
+        fi = yf.Ticker(ticker).fast_info
+        pm   = getattr(fi, "post_market_price",  None)
+        prem = getattr(fi, "pre_market_price",   None)
+        prev = getattr(fi, "regular_market_previous_close", None)
+        ref  = float(prev) if prev and float(prev) > 0 else None
+        result: dict = {}
+        if pm and float(pm) > 0:
+            p = round(float(pm), 2)
+            result["post_market_price"] = p
+            if ref:
+                result["ext_change_pct"] = round((p / ref - 1) * 100, 2)
+        elif prem and float(prem) > 0:
+            p = round(float(prem), 2)
+            result["pre_market_price"] = p
+            if ref:
+                result["ext_change_pct"] = round((p / ref - 1) * 100, 2)
+        return result
+    except Exception:
+        return {}
+
+
 def _mention_to_dict(m: Mention) -> dict:
     score = m.sentiment_score
     return {
@@ -361,6 +385,7 @@ def search():
 # ─── Chart (yfinance — history API has no Finnhub free equivalent) ────────────
 
 CHART_PERIODS = {
+    "6h": ("1d",  "5m"),   # same feed as 1d but trimmed to last 6 h
     "1d": ("1d",  "5m"),
     "1w": ("5d",  "1h"),
     "1m": ("1mo", "1d"),
@@ -688,6 +713,13 @@ def stock_chart(ticker: str):
         hist = yf.Ticker(ticker).history(period=yf_period, interval=interval)
         if hist.empty:
             return jsonify([])
+        # For 6h, trim to the last 6 hours of available data
+        if period == "6h" and not hist.empty:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=6)
+            try:
+                hist = hist[hist.index.tz_convert("UTC") >= cutoff]
+            except Exception:
+                pass
         data = [
             {
                 "time": ts.isoformat(),
@@ -1081,10 +1113,11 @@ def stock_detail(ticker: str):
     all_scored_mentions = get_news_for_ticker(ticker, days=7, limit=60)
     mentions = all_scored_mentions[:10]
 
-    # Finnhub quote + fundamentals in parallel — both have their own caches
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    # Finnhub quote + fundamentals + extended-hours data in parallel
+    with ThreadPoolExecutor(max_workers=3) as pool:
         f_quote = pool.submit(get_quote, ticker)
         f_fund  = pool.submit(get_fundamentals, ticker)
+        f_ext   = pool.submit(_get_extended_hours, ticker)
         try:
             price_data = f_quote.result()
         except Exception as e:
@@ -1095,6 +1128,11 @@ def stock_detail(ticker: str):
         except Exception as e:
             print(f"[stocks] Finnhub fundamentals failed for {ticker}: {e}")
             fundamentals = {}
+        try:
+            ext_data = f_ext.result()
+        except Exception as e:
+            print(f"[stocks] Extended hours failed for {ticker}: {e}")
+            ext_data = {}
 
     # ── 404 guard: no price from Finnhub + no mentions = ticker doesn't exist ──
     if price_data.get("price") is None and not mentions:
@@ -1186,8 +1224,11 @@ def stock_detail(ticker: str):
         "ticker": ticker,
         "symbol": ticker,
         "name": name,
-        "price":      price_data.get("price"),
-        "change_pct": price_data.get("change_pct"),
+        "price":             price_data.get("price"),
+        "change_pct":        price_data.get("change_pct"),
+        "post_market_price": ext_data.get("post_market_price"),
+        "pre_market_price":  ext_data.get("pre_market_price"),
+        "ext_change_pct":    ext_data.get("ext_change_pct"),
         "fundamentals": full_fundamentals,
         "market_cap": fundamentals.get("market_cap"),
         "volume": None,

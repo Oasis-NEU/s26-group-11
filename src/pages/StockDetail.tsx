@@ -105,17 +105,17 @@ function FundamentalsGrid({ f }: { f: Fundamentals }) {
   );
 }
 
-const CHART_PERIODS = ['1D', '1W', '1M', '3M', '1Y'] as const;
+const CHART_PERIODS = ['6H', '1D', '1W', '1M', '3M', '1Y'] as const;
 type ChartPeriod = typeof CHART_PERIODS[number];
 
 function formatChartTime(isoTime: string, period: ChartPeriod) {
   const d = new Date(isoTime);
-  if (period === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  if (period === '6H' || period === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   if (period === '1Y') return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function PriceChart({ symbol, isUp, defaultPeriod = '1M' }: { symbol: string; isUp: boolean; defaultPeriod?: ChartPeriod }) {
+function PriceChart({ symbol, isUp, defaultPeriod = '6H' }: { symbol: string; isUp: boolean; defaultPeriod?: ChartPeriod }) {
   const [period, setPeriod] = useState<ChartPeriod>(defaultPeriod);
   const color = isUp ? '#22c55e' : '#ef4444';
 
@@ -945,6 +945,22 @@ export function StockDetail() {
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
                     Live
                   </span>
+                  {/* After-hours / pre-market price */}
+                  {(stock.post_market_price != null || stock.pre_market_price != null) && (
+                    <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[10px]" style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {stock.post_market_price != null ? 'After Hours' : 'Pre-Market'}
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        ${(stock.post_market_price ?? stock.pre_market_price!).toFixed(2)}
+                      </span>
+                      {stock.ext_change_pct != null && (
+                        <span style={{ color: stock.ext_change_pct >= 0 ? '#22c55e' : '#ef4444' }}>
+                          {stock.ext_change_pct >= 0 ? '+' : ''}{stock.ext_change_pct.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

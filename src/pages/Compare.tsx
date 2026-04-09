@@ -203,8 +203,8 @@ export function Compare() {
   return (
     <motion.div
       variants={staggerContainer}
-      initial="initial"
-      animate="animate"
+      initial="hidden"
+      animate="show"
       className="mx-auto max-w-screen-xl px-5 py-8 space-y-10"
     >
       {/* Page header */}
