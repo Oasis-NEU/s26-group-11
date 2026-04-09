@@ -1,7 +1,3 @@
-import json
-import random
-import string
-
 from flask import Blueprint, jsonify, make_response, request
 from flask_jwt_extended import (
     create_access_token,
@@ -18,20 +14,10 @@ from app.db.models import User
 from app.extensions import bcrypt, db
 
 _RESET_SALT = "password-reset"
-_OTP_SALT = "register-otp"
-_OTP_MAX_AGE = 300  # 5 minutes
 
 
 def _reset_serializer():
     return URLSafeTimedSerializer(config.SECRET_KEY)
-
-
-def _otp_serializer():
-    return URLSafeTimedSerializer(config.SECRET_KEY)
-
-
-def _gen_otp() -> str:
-    return ''.join(random.choices(string.digits, k=6))
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -78,88 +64,13 @@ def register_request():
         if User.query.filter_by(username=username).first():
             return jsonify(error="Username already taken"), 409
 
-    otp = _gen_otp()
+    # Create account immediately — no OTP step required.
+    # Welcome email is sent asynchronously (non-fatal if it fails).
     pw_hash = bcrypt.generate_password_hash(password).decode("utf-8")
-    payload = json.dumps({"email": email, "username": username, "pw_hash": pw_hash, "otp": otp})
-    token = _otp_serializer().dumps(payload, salt=_OTP_SALT)
-
-    html = f"""
-    <div style="font-family:monospace;max-width:480px;margin:0 auto;padding:32px;background:#0a0a0a;color:#e5e5e5">
-      <h2 style="font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:#22c55e;margin:0 0 24px">
-        SentimentSignal
-      </h2>
-      <p style="font-size:14px;margin:0 0 20px">Verify your new account.</p>
-      <div style="font-size:40px;font-weight:900;letter-spacing:0.4em;color:#22c55e;margin:0 0 20px;padding:20px;border:1px solid #22c55e22;background:#22c55e11;text-align:center">
-        {otp}
-      </div>
-      <p style="font-size:12px;color:#888;margin:0">This code expires in 5 minutes. Do not share it.</p>
-      <p style="font-size:11px;color:#555;margin:32px 0 0">If you didn't create an account, ignore this email.</p>
-    </div>
-    """
-
-    try:
-        send_email(email, "Verify your SentimentSignal account", html)
-    except RuntimeError:
-        # Email entirely unconfigured — dev fallback
-        return jsonify(token=token, dev_otp=otp), 200
-    except Exception as e:
-        # Email sending failed (e.g. Resend domain not verified).
-        # Skip OTP and create the account directly so registration still works.
-        print(f"[auth] Email send failed, skipping OTP verification: {e}")
-        if User.query.filter_by(email=email).first():
-            return jsonify(error="Email already registered"), 409
-        if username and User.query.filter_by(username=username).first():
-            return jsonify(error="Username already taken"), 409
-        pw_hash = bcrypt.generate_password_hash(password).decode("utf-8")
-        user = User(email=email, password_hash=pw_hash, username=username)
-        db.session.add(user)
-        db.session.commit()
-        send_welcome_email(email, username or "")
-        jwt_token = create_access_token(identity=str(user.id))
-        resp = make_response(jsonify(**_user_dict(user)), 201)
-        set_access_cookies(resp, jwt_token)
-        return resp
-
-    return jsonify(token=token), 200
-
-
-@auth_bp.route("/register/verify", methods=["POST"])
-def register_verify():
-    data = request.get_json() or {}
-    token = data.get("token") or ""
-    otp_input = (data.get("otp") or "").strip()
-
-    if not token or not otp_input:
-        return jsonify(error="Token and verification code are required"), 400
-
-    try:
-        payload_str = _otp_serializer().loads(token, salt=_OTP_SALT, max_age=_OTP_MAX_AGE)
-    except SignatureExpired:
-        return jsonify(error="Verification code expired. Please register again."), 400
-    except BadSignature:
-        return jsonify(error="Invalid token."), 400
-
-    try:
-        payload = json.loads(payload_str)
-    except Exception:
-        return jsonify(error="Invalid token."), 400
-
-    if payload.get("otp") != otp_input:
-        return jsonify(error="Incorrect verification code. Please try again."), 400
-
-    email    = payload["email"]
-    username = payload.get("username")
-    pw_hash  = payload["pw_hash"]
-
-    # Guard against race conditions
-    if User.query.filter_by(email=email).first():
-        return jsonify(error="Email already registered"), 409
-    if username and User.query.filter_by(username=username).first():
-        return jsonify(error="Username already taken"), 409
-
     user = User(email=email, password_hash=pw_hash, username=username)
     db.session.add(user)
     db.session.commit()
+
     send_welcome_email(email, username or "")
 
     jwt_token = create_access_token(identity=str(user.id))

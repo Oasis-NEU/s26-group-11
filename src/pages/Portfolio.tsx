@@ -54,7 +54,8 @@ export function Portfolio() {
     queries: (portfolio ?? []).map((item) => ({
       queryKey: ['stock', item.ticker],
       queryFn: () => getStockDetail(item.ticker),
-      staleTime: 60_000,
+      staleTime: 25_000,
+      refetchInterval: 30_000,
     })),
   });
 
@@ -150,12 +151,18 @@ export function Portfolio() {
       <motion.div variants={staggerItem} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1
-              className="text-2xl font-black uppercase tracking-widest"
-              style={{ color: 'var(--text-primary)', ...MONO }}
-            >
-              Portfolio
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1
+                className="text-2xl font-black uppercase tracking-widest"
+                style={{ color: 'var(--text-primary)', ...MONO }}
+              >
+                Portfolio
+              </h1>
+              <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest" style={{ color: 'var(--accent)', fontFamily: MONO.fontFamily }}>
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                Live
+              </span>
+            </div>
             <p className="text-xs mt-1 uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
               Track your positions
             </p>

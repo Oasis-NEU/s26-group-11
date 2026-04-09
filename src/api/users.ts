@@ -51,3 +51,19 @@ export const getFollowers = (uid: number) =>
 
 export const getFollowing = (uid: number) =>
   client.get<FollowUser[]>(`/api/users/${uid}/following`).then((r) => r.data);
+
+export interface ActivityItem {
+  type: 'thread' | 'vote';
+  id: string;
+  user_id: number;
+  username: string;
+  action: string; // 'posted' | 'bullish' | 'bearish'
+  ticker: string | null;
+  thread_id: number;
+  thread_title: string;
+  score?: number;
+  created_at: string;
+}
+
+export const getActivityFeed = () =>
+  client.get<ActivityItem[]>('/api/users/activity-feed').then((r) => r.data);

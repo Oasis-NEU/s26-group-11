@@ -26,3 +26,4 @@ vaderSentiment
 python-dotenv
 gunicorn
 resend
+anthropic>=0.25.0

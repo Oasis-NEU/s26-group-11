@@ -218,3 +218,62 @@ export interface CompareResult {
 export const compareStocks = (tickers: string[]) =>
   client.get<CompareResult[]>('/api/stocks/compare', { params: { tickers: tickers.join(',') } })
     .then((r) => r.data);
+
+export interface ScreenerResult {
+  ticker: string;
+  mention_count: number;
+  avg_sentiment: number;
+  avg_credibility: number;
+  sentiment_label: 'Bullish' | 'Bearish' | 'Neutral';
+}
+
+export interface ScreenerParams {
+  days?: number;
+  min_sentiment?: number;
+  max_sentiment?: number;
+  min_mentions?: number;
+  min_credibility?: number;
+  sort_by?: 'mentions' | 'sentiment' | 'credibility';
+}
+
+export const screenStocks = (params: ScreenerParams = {}) =>
+  client.get<ScreenerResult[]>('/api/stocks/screener', { params }).then((r) => r.data);
+
+export interface HeatmapStock {
+  ticker: string;
+  avg_sentiment: number;
+  mention_count: number;
+}
+
+export const getHeatmap = (days = 7) =>
+  client.get<HeatmapStock[]>('/api/stocks/heatmap', { params: { days } }).then((r) => r.data);
+
+export interface OverlayPoint {
+  date: string;
+  sentiment: number | null;
+  price: number | null;
+}
+
+export const getSentimentPriceOverlay = (ticker: string, days = 30) =>
+  client.get<OverlayPoint[]>(`/api/stocks/${ticker}/sentiment-price-overlay`, { params: { days } })
+    .then((r) => r.data);
+
+export interface SourceBreakdown {
+  source: string;
+  count: number;
+  pct: number;
+}
+
+export const getSourceBreakdown = (ticker: string, days = 7) =>
+  client.get<SourceBreakdown[]>(`/api/stocks/${ticker}/source-breakdown`, { params: { days } })
+    .then((r) => r.data);
+
+export interface AISummary {
+  summary: string | null;
+  available: boolean;
+  article_count?: number;
+  reason?: string;
+}
+
+export const getAISummary = (ticker: string) =>
+  client.get<AISummary>(`/api/stocks/${ticker}/ai-summary`).then((r) => r.data);

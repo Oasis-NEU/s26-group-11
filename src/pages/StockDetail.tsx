@@ -7,9 +7,9 @@ import { getWatchlist, addToWatchlist, removeFromWatchlist } from '../api/watchl
 import { useAuth } from '../store/useAuth';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  AreaChart, Area, ReferenceLine,
+  AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend,
 } from 'recharts';
-import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentTrend, getSentimentSummary, getRedditPulse, searchStocks, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentPoint, type SentimentSummary, type RedditPulse } from '../api/stocks';
+import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentTrend, getSentimentSummary, getRedditPulse, searchStocks, getSentimentPriceOverlay, getSourceBreakdown, getAISummary, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentPoint, type SentimentSummary, type RedditPulse, type OverlayPoint, type SourceBreakdown } from '../api/stocks';
 import { getThreads, type Thread } from '../api/discuss';
 import { trackClick } from '../api/preferences';
 import { usePreferences } from '../store/usePreferences';
@@ -773,6 +773,8 @@ export function StockDetail() {
     queryKey: ['stock', symbol],
     queryFn: () => getStockDetail(symbol!),
     enabled: !!symbol,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
   });
 
   const { data: mentions, isLoading: mentionsLoading } = useQuery({
@@ -807,6 +809,28 @@ export function StockDetail() {
     queryFn: () => getSentimentTrend(symbol!, sentimentDays),
     enabled: !!symbol,
     staleTime: 10 * 60_000,
+  });
+
+  const [overlayDays, setOverlayDays] = useState(30);
+  const { data: overlayData } = useQuery({
+    queryKey: ['sentiment-price-overlay', symbol, overlayDays],
+    queryFn: () => getSentimentPriceOverlay(symbol!, overlayDays),
+    enabled: !!symbol,
+    staleTime: 10 * 60_000,
+  });
+
+  const { data: sourcesData } = useQuery({
+    queryKey: ['source-breakdown', symbol],
+    queryFn: () => getSourceBreakdown(symbol!, 7),
+    enabled: !!symbol,
+    staleTime: 10 * 60_000,
+  });
+
+  const { data: aiSummary } = useQuery({
+    queryKey: ['ai-summary', symbol],
+    queryFn: () => getAISummary(symbol!),
+    enabled: !!symbol,
+    staleTime: 10 * 60 * 1000, // 10 minutes - expensive to regenerate
   });
 
   // Compute delta: today's score vs yesterday's score
@@ -917,6 +941,10 @@ export function StockDetail() {
                       {Math.abs(stock.change_pct).toFixed(2)}%
                     </div>
                   )}
+                  <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest justify-end mt-0.5" style={{ color: 'var(--accent)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                    Live
+                  </span>
                 </div>
               )}
             </div>
@@ -924,6 +952,25 @@ export function StockDetail() {
 
           {/* Price chart */}
           <PriceChart symbol={stock.symbol} isUp={(stock.change_pct ?? 0) >= 0} defaultPeriod={prefs.default_timeframe as ChartPeriod} />
+
+          {/* AI Summary */}
+          {aiSummary?.available && aiSummary?.summary && (
+            <section>
+              <div className="border p-4" style={{ borderColor: 'var(--accent)', borderLeftWidth: 3, backgroundColor: 'var(--bg-surface)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                    ✦ AI Summary
+                  </span>
+                  <span className="text-[9px]" style={{ color: 'var(--text-muted)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                    · {aiSummary.article_count} articles · powered by Claude
+                  </span>
+                </div>
+                <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                  {aiSummary.summary}
+                </p>
+              </div>
+            </section>
+          )}
 
           {/* Sentiment Trend Chart */}
           {(() => {
@@ -1020,8 +1067,135 @@ export function StockDetail() {
             );
           })()}
 
+          {/* Sentiment vs Price Overlay */}
+          {(() => {
+            const MONO_O: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
+            const points = (overlayData ?? []) as OverlayPoint[];
+            const hasEnough = points.filter(p => p.sentiment !== null && p.price !== null).length >= 3;
+            return (
+              <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    Sentiment vs Price
+                  </h2>
+                  <div className="flex gap-1 flex-wrap">
+                    {([7, 30, 90] as const).map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setOverlayDays(d)}
+                        className="rounded px-2 py-0.5 text-xs font-medium transition-colors"
+                        style={{
+                          backgroundColor: overlayDays === d ? 'var(--bg-elevated)' : 'transparent',
+                          color: overlayDays === d ? 'var(--text-primary)' : 'var(--text-muted)',
+                          border: '1px solid',
+                          borderColor: overlayDays === d ? 'var(--border-hover)' : 'transparent',
+                          ...MONO_O,
+                        }}
+                      >
+                        {d === 7 ? '7D' : d === 30 ? '30D' : '90D'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {!hasEnough ? (
+                  <p className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                    Not enough data for overlay
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                        tickFormatter={(v: string) => {
+                          const d = new Date(v);
+                          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                        }}
+                      />
+                      <YAxis
+                        yAxisId="price"
+                        orientation="left"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: number) => `$${v.toFixed(0)}`}
+                      />
+                      <YAxis
+                        yAxisId="sentiment"
+                        orientation="right"
+                        domain={[-1, 1]}
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: number) => v.toFixed(1)}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+                        labelStyle={{ color: 'var(--text-muted)' }}
+                        formatter={(value: number | null, name: string) => {
+                          if (value === null || value === undefined) return ['—', name];
+                          if (name === 'Price') return [`$${(value as number).toFixed(2)}`, name];
+                          return [`${(value as number) > 0 ? '+' : ''}${(value as number).toFixed(3)}`, name];
+                        }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
+                        formatter={(value) => <span style={{ color: 'var(--text-muted)', fontFamily: '"IBM Plex Mono", monospace' }}>{value}</span>}
+                      />
+                      <ReferenceLine yAxisId="sentiment" y={0} stroke="var(--border-hover)" strokeDasharray="3 3" />
+                      <Line
+                        yAxisId="price"
+                        type="monotone"
+                        dataKey="price"
+                        name="Price"
+                        stroke="var(--accent)"
+                        strokeWidth={1.5}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Bar
+                        yAxisId="sentiment"
+                        dataKey="sentiment"
+                        name="Sentiment"
+                        fill="#22c55e"
+                        opacity={0.5}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Fundamentals */}
           {stock.fundamentals && <FundamentalsGrid f={stock.fundamentals} />}
+
+          {/* Coverage Sources */}
+          {sourcesData && sourcesData.length > 0 && (() => {
+            const MONO_S: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
+            return (
+              <div className="rounded-lg border p-5 space-y-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  Coverage Sources
+                </h2>
+                <div className="space-y-1.5">
+                  {(sourcesData as SourceBreakdown[]).map(s => (
+                    <div key={s.source} className="flex items-center gap-2">
+                      <span className="text-[10px] w-32 truncate" style={{ color: 'var(--text-muted)', ...MONO_S }}>{s.source}</span>
+                      <div className="flex-1 h-1.5 rounded-full" style={{ background: 'var(--border)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: 'var(--accent)' }} />
+                      </div>
+                      <span className="text-[10px] w-8 text-right" style={{ color: 'var(--text-muted)', ...MONO_S }}>{s.pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Sentiment Summary */}
           {summaryLoading && (

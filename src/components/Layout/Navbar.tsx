@@ -32,6 +32,10 @@ export function Navbar() {
     { label: 'Watchlist',    path: '/app/watchlists' },
     { label: 'Portfolio',    path: '/app/portfolio' },
     { label: 'Compare',      path: '/app/compare' },
+    { label: 'Heatmap',      path: '/app/heatmap' },
+    { label: 'Screener',     path: '/app/screener' },
+    { label: 'Activity',     path: '/app/activity' },
+    { label: 'Alerts',       path: '/app/alerts' },
     { label: 'How It Works', path: '/app/how-it-works' },
   ];
 
@@ -63,7 +67,7 @@ export function Navbar() {
 
             {/* Nav links with sliding indicator */}
             <nav className="flex items-center">
-              {NAV_LINKS.slice(0, 5).map(({ label, path }) => {
+              {NAV_LINKS.slice(0, 6).map(({ label, path }) => {
                 const active = path === '/app'
                   ? location.pathname === '/app'
                   : location.pathname.startsWith(path);

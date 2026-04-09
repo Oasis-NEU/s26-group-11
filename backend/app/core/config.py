@@ -13,6 +13,7 @@ INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "dev-secret-key")
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-jwt-secret-change-in-prod")
 
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 MAIL_FROM = os.getenv("MAIL_FROM", "SentimentSignal <onboarding@resend.dev>")
 
