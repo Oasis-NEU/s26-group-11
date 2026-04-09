@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { useAuth } from '../store/useAuth';
-import { getActivityFeed, ActivityItem } from '../api/users';
+import { getActivityFeed } from '../api/users';
+import type { ActivityItem } from '../api/users';
 import { staggerContainer, staggerItem } from '../components/PageEnter';
 
 const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
