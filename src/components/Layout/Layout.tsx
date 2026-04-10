@@ -4,6 +4,7 @@ import { Navbar } from './Navbar';
 import { Footer } from './Footer';
 import { PageBackground } from '../PageBackground';
 import { ToastStack } from '../ToastStack';
+import { FirstVisitBanner } from '../FirstVisitBanner';
 
 export function Layout() {
   const location = useLocation();
@@ -19,6 +20,7 @@ export function Layout() {
     >
       <PageBackground />
       <Navbar />
+      <FirstVisitBanner />
       {/*
         No inner AnimatePresence — nested mode="wait" reliably hangs
         enter animations on certain Framer Motion versions, causing blank pages.

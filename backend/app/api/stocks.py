@@ -210,22 +210,89 @@ def trending():
         for s in Stock.query.filter(Stock.ticker.in_(tickers)).all()
     }
 
+    # Top event type per ticker (most common non-null, non-'other' event in window)
+    event_rows = (
+        db.session.query(
+            Mention.ticker,
+            Mention.event_type,
+            func.count(Mention.id).label("cnt"),
+        )
+        .filter(
+            Mention.ticker.in_(tickers),
+            Mention.published_at >= cutoff,
+            Mention.event_type.isnot(None),
+            Mention.event_type != "other",
+        )
+        .group_by(Mention.ticker, Mention.event_type)
+        .order_by(Mention.ticker, func.count(Mention.id).desc())
+        .all()
+    )
+    event_map: dict = {}
+    for r in event_rows:
+        if r.ticker not in event_map:   # first = most common per ticker
+            event_map[r.ticker] = r.event_type
+
     results = []
     for ticker, mention_count in rows:
         sent = sentiment_map.get(ticker, {"score": None, "count": 0})
         results.append({
             "ticker": ticker,
             "symbol": ticker,
-            "name":          stock_names.get(ticker),
-            "mention_count": mention_count,
+            "name":            stock_names.get(ticker),
+            "mention_count":   mention_count,
             "sentiment_score": sent["score"],
             "sentiment_count": sent["count"],
             "sentiment_label": sentiment_label(sent["score"]) if sent["score"] is not None else None,
-            "price": prices.get(ticker, {}).get("price"),
-            "change_pct": prices.get(ticker, {}).get("change_pct"),
+            "price":           prices.get(ticker, {}).get("price"),
+            "change_pct":      prices.get(ticker, {}).get("change_pct"),
+            "top_event_type":  event_map.get(ticker),
         })
     cache_set("trending", results, ttl=300)
     return jsonify(results)
+
+
+# ─── Market Summary ──────────────────────────────────────────────────────────
+
+@stocks_bp.route("/market-summary")
+def market_summary():
+    """Aggregate 24h market sentiment: bullish/bearish/neutral counts + top movers."""
+    cached = cache_get("market-summary")
+    if cached is not None:
+        return jsonify(cached)
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    rows = (
+        db.session.query(
+            Mention.ticker,
+            func.avg(Mention.sentiment_score).label("avg_sent"),
+            func.count(Mention.id).label("cnt"),
+        )
+        .filter(
+            Mention.published_at >= cutoff,
+            Mention.sentiment_score.isnot(None),
+        )
+        .group_by(Mention.ticker)
+        .having(func.count(Mention.id) >= 3)
+        .all()
+    )
+
+    bullish_tickers = [r for r in rows if (r.avg_sent or 0) >= 0.05]
+    bearish_tickers = [r for r in rows if (r.avg_sent or 0) <= -0.05]
+    neutral_tickers = [r for r in rows if -0.05 < (r.avg_sent or 0) < 0.05]
+
+    bullish_tickers.sort(key=lambda r: r.avg_sent or 0, reverse=True)
+    bearish_tickers.sort(key=lambda r: r.avg_sent or 0)
+
+    result = {
+        "bullish": len(bullish_tickers),
+        "bearish": len(bearish_tickers),
+        "neutral": len(neutral_tickers),
+        "total":   len(rows),
+        "top_bullish": [r.ticker for r in bullish_tickers[:4]],
+        "top_bearish": [r.ticker for r in bearish_tickers[:4]],
+    }
+    cache_set("market-summary", result, ttl=300)
+    return jsonify(result)
 
 
 # ─── Shifters ────────────────────────────────────────────────────────────────
@@ -1248,3 +1315,79 @@ def stock_detail(ticker: str):
         "history": history,
         "mentions": [_mention_to_dict(m) for m in mentions],
     })
+
+
+# ─── Related Stocks ───────────────────────────────────────────────────────────
+
+@stocks_bp.route("/<ticker>/related")
+def related_stocks(ticker: str):
+    """
+    Tickers that frequently appear in the same articles as this ticker
+    (co-mention analysis over the last 30 days).
+    """
+    ticker = ticker.upper()
+    cache_key = f"related:{ticker}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    from sqlalchemy.orm import aliased
+
+    M2 = aliased(Mention)
+    co_rows = (
+        db.session.query(M2.ticker, func.count(M2.id).label("co_count"))
+        .join(Mention, (Mention.url == M2.url) & (M2.ticker != ticker))
+        .filter(
+            Mention.ticker == ticker,
+            Mention.published_at >= cutoff,
+            Mention.url.isnot(None),
+            M2.ticker.isnot(None),
+        )
+        .group_by(M2.ticker)
+        .order_by(func.count(M2.id).desc())
+        .limit(6)
+        .all()
+    )
+
+    if not co_rows:
+        cache_set(cache_key, [], ttl=3600)
+        return jsonify([])
+
+    related_tickers = [r.ticker for r in co_rows]
+    prices = get_quote_batch(related_tickers)
+    stock_names = {
+        s.ticker: s.name
+        for s in Stock.query.filter(Stock.ticker.in_(related_tickers)).all()
+    }
+    # Quick sentiment for related tickers
+    sent_rows = (
+        db.session.query(
+            Mention.ticker,
+            func.avg(Mention.sentiment_score).label("avg_sent"),
+        )
+        .filter(
+            Mention.ticker.in_(related_tickers),
+            Mention.published_at >= datetime.now(timezone.utc) - timedelta(days=7),
+            Mention.sentiment_score.isnot(None),
+        )
+        .group_by(Mention.ticker)
+        .all()
+    )
+    sent_map = {r.ticker: round(float(r.avg_sent), 4) for r in sent_rows}
+
+    result = [
+        {
+            "ticker":          r.ticker,
+            "name":            stock_names.get(r.ticker),
+            "co_count":        r.co_count,
+            "price":           prices.get(r.ticker, {}).get("price"),
+            "change_pct":      prices.get(r.ticker, {}).get("change_pct"),
+            "sentiment_score": sent_map.get(r.ticker),
+            "sentiment_label": sentiment_label(sent_map.get(r.ticker)) if sent_map.get(r.ticker) is not None else None,
+        }
+        for r in co_rows
+    ]
+    cache_set(cache_key, result, ttl=3600)
+    return jsonify(result)
+

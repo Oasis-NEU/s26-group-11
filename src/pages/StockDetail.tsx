@@ -9,7 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend,
 } from 'recharts';
-import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentTrend, getSentimentSummary, getRedditPulse, searchStocks, getSentimentPriceOverlay, getSourceBreakdown, getAISummary, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentPoint, type SentimentSummary, type RedditPulse, type OverlayPoint, type SourceBreakdown } from '../api/stocks';
+import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentTrend, getSentimentSummary, getRedditPulse, searchStocks, getSentimentPriceOverlay, getSourceBreakdown, getAISummary, getRelatedStocks, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentPoint, type SentimentSummary, type RedditPulse, type OverlayPoint, type SourceBreakdown, type RelatedStock } from '../api/stocks';
 import { getThreads, type Thread } from '../api/discuss';
 import { trackClick } from '../api/preferences';
 import { usePreferences } from '../store/usePreferences';
@@ -614,6 +614,81 @@ function MentionCard({ mention, featured = false }: { mention: Mention; featured
   return content;
 }
 
+// ── Related Stocks ────────────────────────────────────────────────────────────
+
+function RelatedStocksSection({ symbol }: { symbol: string }) {
+  const MONO_R: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
+
+  const { data, isLoading } = useQuery<RelatedStock[]>({
+    queryKey: ['related', symbol],
+    queryFn: () => getRelatedStocks(symbol),
+    staleTime: 60 * 60_000,
+  });
+
+  if (isLoading) return (
+    <div className="space-y-2">
+      <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Related Stocks</h2>
+      <div className="flex gap-2 flex-wrap">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="h-20 w-28 animate-pulse rounded border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border)' }} />
+        ))}
+      </div>
+    </div>
+  );
+
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+        Also Mentioned With {symbol}
+      </h2>
+      <div className="flex gap-2 flex-wrap">
+        {data.map((s: RelatedStock) => {
+          const up = (s.change_pct ?? 0) >= 0;
+          const sentScore = s.sentiment_score ?? 0;
+          const sentColor = sentScore >= 0.05 ? '#22c55e' : sentScore <= -0.05 ? '#ef4444' : '#d97706';
+          return (
+            <Link
+              key={s.ticker}
+              to={`/app/stock/${s.ticker}`}
+              className="block border p-3 transition-colors hover:border-[var(--border-hover)]"
+              style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)', minWidth: 100 }}
+            >
+              <div className="font-black text-sm mb-0.5" style={{ color: 'var(--text-primary)', ...MONO_R }}>
+                {s.ticker}
+              </div>
+              {s.name && (
+                <div className="text-[10px] truncate max-w-[100px] mb-1" style={{ color: 'var(--text-muted)', ...MONO_R }}>
+                  {s.name.split(' ').slice(0, 2).join(' ')}
+                </div>
+              )}
+              {s.price != null && (
+                <div className="text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)', ...MONO_R }}>
+                  ${s.price.toFixed(2)}
+                  {s.change_pct != null && (
+                    <span style={{ color: up ? '#22c55e' : '#ef4444' }}>
+                      {' '}{up ? '+' : ''}{s.change_pct.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+              )}
+              {s.sentiment_label && (
+                <div className="mt-1 text-[9px] font-bold uppercase tracking-widest" style={{ color: sentColor, ...MONO_R }}>
+                  {s.sentiment_label}
+                </div>
+              )}
+              <div className="mt-1 text-[9px]" style={{ color: 'var(--text-muted)', ...MONO_R }}>
+                co-mentioned {s.co_count}×
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Ticker Not Found ──────────────────────────────────────────────────────────
 
 function TickerNotFound({ symbol }: { symbol: string }) {
@@ -833,6 +908,13 @@ export function StockDetail() {
     staleTime: 10 * 60 * 1000, // 10 minutes - expensive to regenerate
   });
 
+  const { data: relatedStocks } = useQuery({
+    queryKey: ['related', symbol],
+    queryFn: () => getRelatedStocks(symbol!),
+    enabled: !!symbol && !stockLoading && !stockError,
+    staleTime: 60 * 60_000,
+  });
+
   // Compute delta: today's score vs yesterday's score
   const sentimentDelta = (() => {
     if (!sentimentHistory || sentimentHistory.length < 2) return null;
@@ -993,6 +1075,18 @@ export function StockDetail() {
             const MONO_T: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
             const trendData = (sentimentTrend ?? []) as SentimentPoint[];
             const totalArticles = trendData.reduce((s, p) => s + p.count, 0);
+            // Article count context: compare recent 7 days vs whole period average
+            const recentDays = trendData.slice(-7);
+            const recentTotal = recentDays.reduce((s, p) => s + p.count, 0);
+            const avgPerDay = trendData.length > 0 ? totalArticles / trendData.length : 0;
+            const recentAvgPerDay = recentDays.length > 0 ? recentTotal / recentDays.length : 0;
+            const articleContext = avgPerDay > 0 && trendData.length >= 14
+              ? recentAvgPerDay > avgPerDay * 1.3
+                ? { label: 'Above avg activity', color: '#16a34a' }
+                : recentAvgPerDay < avgPerDay * 0.7
+                ? { label: 'Below avg activity', color: '#d97706' }
+                : null
+              : null;
             return (
               <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1003,6 +1097,14 @@ export function StockDetail() {
                     {trendData.length > 0 && (
                       <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted)', ...MONO_T }}>
                         {totalArticles} articles
+                      </span>
+                    )}
+                    {articleContext && (
+                      <span
+                        className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-px"
+                        style={{ color: articleContext.color, backgroundColor: `${articleContext.color}20`, ...MONO_T }}
+                      >
+                        {articleContext.label}
                       </span>
                     )}
                   </div>
@@ -1329,6 +1431,11 @@ export function StockDetail() {
               </motion.div>
             )}
           </div>
+
+          {/* Related Stocks */}
+          {relatedStocks && relatedStocks.length > 0 && (
+            <RelatedStocksSection symbol={stock.symbol} />
+          )}
 
           {/* Discussion */}
           <TickerDiscussion symbol={stock.symbol} />

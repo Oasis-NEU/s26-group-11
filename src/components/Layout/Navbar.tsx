@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Settings, Menu, X, ChevronDown } from 'lucide-react';
+import { Settings, Menu, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SearchBar } from '../SearchBar';
 import { useAuth } from '../../store/useAuth';
+import { useTheme } from '../../store/useTheme';
 import { Avatar } from '../Avatar';
 
 const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
@@ -20,6 +21,7 @@ function useDateDisplay() {
 export function Navbar() {
   const location    = useLocation();
   const { isLoggedIn, email, username, avatar_url } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const dateDisplay = useDateDisplay();
   const [menuOpen,   setMenuOpen]   = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
@@ -162,6 +164,17 @@ export function Navbar() {
                 </AnimatePresence>
               </div>
             </nav>
+
+            {/* Dark/Light mode toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 transition-colors hover:text-[var(--accent)]"
+              style={{ color: 'var(--text-muted)' }}
+              aria-label="Toggle dark/light mode"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
 
             {/* Auth / Settings */}
             {isLoggedIn() ? (

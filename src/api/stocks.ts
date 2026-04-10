@@ -10,6 +10,7 @@ export interface TrendingStock {
   sentiment_label: string | null;
   price: number | null;
   change_pct: number | null;
+  top_event_type?: string | null;
 }
 
 export interface ShifterStock {
@@ -280,3 +281,28 @@ export interface AISummary {
 
 export const getAISummary = (ticker: string) =>
   client.get<AISummary>(`/api/stocks/${ticker}/ai-summary`).then((r) => r.data);
+
+export interface MarketSummary {
+  bullish: number;
+  bearish: number;
+  neutral: number;
+  total: number;
+  top_bullish: string[];
+  top_bearish: string[];
+}
+
+export const getMarketSummary = () =>
+  client.get<MarketSummary>('/api/stocks/market-summary').then((r) => r.data);
+
+export interface RelatedStock {
+  ticker: string;
+  name: string | null;
+  co_count: number;
+  price: number | null;
+  change_pct: number | null;
+  sentiment_score: number | null;
+  sentiment_label: string | null;
+}
+
+export const getRelatedStocks = (ticker: string) =>
+  client.get<RelatedStock[]>(`/api/stocks/${ticker}/related`).then((r) => r.data);
