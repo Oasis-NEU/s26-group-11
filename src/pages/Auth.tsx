@@ -51,6 +51,8 @@ export function Auth() {
         if ('email' in res) {
           setAuth(res.email, res.username);
           setProfile({ first_name: res.first_name, last_name: res.last_name, bio: res.bio, avatar_url: res.avatar_url });
+          // Clear visit flag so the onboarding banner shows after registration
+          try { localStorage.removeItem('ss_visited'); } catch { /* ignore */ }
           setWelcomeUsername(username || email.split('@')[0]);
           setShowWelcome(true);
           return;
