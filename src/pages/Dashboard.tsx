@@ -1389,12 +1389,12 @@ function SidebarSkeleton() {
         <div
           key={i}
           className="flex items-center gap-3 py-3 border-b animate-pulse"
-          style={{ borderColor: 'rgba(255,255,255,0.15)' }}
+          style={{ borderColor: 'rgba(0,0,0,0.15)' }}
         >
-          <div className="h-6 w-6 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          <div className="h-6 w-6 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.12)' }} />
           <div className="flex-1 space-y-1.5">
-            <div className="h-2.5 w-16 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
-            <div className="h-2 w-24 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <div className="h-2.5 w-16 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.12)' }} />
+            <div className="h-2 w-24 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }} />
           </div>
         </div>
       ))}
@@ -1560,7 +1560,7 @@ function MoversSidebar() {
                     className="text-[11px] font-bold tabular-nums"
                     style={{ color: up ? 'var(--accent)' : 'var(--red)', ...MONO }}
                   >
-                    {up ? '▲' : '▼'} {Math.abs(delta * 100).toFixed(0)}
+                    {up ? '▲' : '▼'} {Math.abs(delta * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>

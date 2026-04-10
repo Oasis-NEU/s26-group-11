@@ -6,7 +6,7 @@ import { Filter, TrendingUp, TrendingDown, Minus, Plus } from 'lucide-react';
 import { screenStocks, type ScreenerParams, type ScreenerResult } from '../api/stocks';
 import { staggerContainer, staggerItem } from '../components/PageEnter';
 
-const MONO: React.CSSProperties = { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" };
+const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
 
 type SentimentFilter = 'all' | 'bullish' | 'bearish';
 type SortBy = 'mentions' | 'sentiment' | 'credibility';

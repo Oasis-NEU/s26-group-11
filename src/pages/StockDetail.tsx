@@ -908,12 +908,6 @@ export function StockDetail() {
     staleTime: 10 * 60 * 1000, // 10 minutes - expensive to regenerate
   });
 
-  const { data: relatedStocks } = useQuery({
-    queryKey: ['related', symbol],
-    queryFn: () => getRelatedStocks(symbol!),
-    enabled: !!symbol && !stockLoading && !stockError,
-    staleTime: 60 * 60_000,
-  });
 
   // Compute delta: today's score vs yesterday's score
   const sentimentDelta = (() => {
@@ -1433,9 +1427,7 @@ export function StockDetail() {
           </div>
 
           {/* Related Stocks */}
-          {relatedStocks && relatedStocks.length > 0 && (
-            <RelatedStocksSection symbol={stock.symbol} />
-          )}
+          <RelatedStocksSection symbol={stock.symbol} />
 
           {/* Discussion */}
           <TickerDiscussion symbol={stock.symbol} />

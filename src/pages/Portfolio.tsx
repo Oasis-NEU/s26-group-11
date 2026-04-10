@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Trash2, Plus, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Trash2, Plus, TrendingUp, TrendingDown, Minus, Lock } from 'lucide-react';
+import { useAuth } from '../store/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getPortfolio, addPosition, removePosition,
@@ -38,11 +39,36 @@ function PnlBadge({ value, pct }: { value: number; pct: number }) {
 }
 
 export function Portfolio() {
+  const { isLoggedIn } = useAuth();
   const qc = useQueryClient();
   const [ticker, setTicker] = useState('');
   const [shares, setShares] = useState('');
   const [avgCost, setAvgCost] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Show friendly auth wall instead of triggering a hard 401 redirect
+  if (!isLoggedIn()) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-6 text-center">
+        <Lock className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
+        <div className="space-y-1">
+          <p className="font-semibold" style={{ color: 'var(--text-primary)', fontFamily: '"IBM Plex Mono", monospace' }}>
+            Sign in to use Portfolio
+          </p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            Track your positions and P&amp;L in real time.
+          </p>
+        </div>
+        <Link
+          to="/auth"
+          className="px-5 py-2 text-xs font-black uppercase tracking-widest transition-colors"
+          style={{ backgroundColor: 'var(--accent)', color: 'var(--bg-page)', fontFamily: '"IBM Plex Mono", monospace' }}
+        >
+          Sign In
+        </Link>
+      </div>
+    );
+  }
 
   const { data: portfolio, isLoading } = useQuery({
     queryKey: ['portfolio'],

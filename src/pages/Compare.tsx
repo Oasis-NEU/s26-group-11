@@ -8,7 +8,7 @@ import {
 import { compareStocks, type CompareResult } from '../api/stocks';
 import { staggerContainer, staggerItem } from '../components/PageEnter';
 
-const MONO: React.CSSProperties = { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" };
+const MONO: React.CSSProperties = { fontFamily: "'IBM Plex Mono', monospace" };
 
 function sentimentColor(score: number): string {
   if (score >= 0.05)  return 'var(--accent)';

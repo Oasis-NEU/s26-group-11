@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { login, register, forgotPassword, registerRequest } from '../api/auth';
+import { login, forgotPassword, registerRequest } from '../api/auth';
 import { useAuth } from '../store/useAuth';
 import WelcomeScreen from '../components/WelcomeScreen';
 
@@ -66,9 +66,6 @@ export function Auth() {
       setLoading(false);
     }
   }
-
-  // Keep register import used (suppress unused warning)
-  void register;
 
   return (
     <motion.div
