@@ -1,7 +1,3 @@
-import json
-import random
-import string
-
 from flask import Blueprint, jsonify, make_response, request
 from flask_jwt_extended import (
     create_access_token,
@@ -18,20 +14,10 @@ from app.db.models import User
 from app.extensions import bcrypt, db
 
 _RESET_SALT = "password-reset"
-_OTP_SALT = "register-otp"
-_OTP_MAX_AGE = 300  # 5 minutes
 
 
 def _reset_serializer():
     return URLSafeTimedSerializer(config.SECRET_KEY)
-
-
-def _otp_serializer():
-    return URLSafeTimedSerializer(config.SECRET_KEY)
-
-
-def _gen_otp() -> str:
-    return ''.join(random.choices(string.digits, k=6))
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -130,6 +116,7 @@ def register_verify():
     user = User(email=email, password_hash=pw_hash, username=username)
     db.session.add(user)
     db.session.commit()
+
     send_welcome_email(email, username or "")
 
     jwt_token = create_access_token(identity=str(user.id))

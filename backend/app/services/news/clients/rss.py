@@ -154,11 +154,13 @@ def fetch_broad_rss(ticker: str, company_name: str | None = None,
     results: list[dict] = []
     seen_urls: set[str] = set()
 
-    # Build company-name keywords (first two significant words, e.g. "Visa" from "Visa Inc")
+    # Build company-name keywords (first two significant words ≥ 5 chars).
+    # Short keywords like "KEY", "ACE", "MO" match too many unrelated headlines.
     name_keywords: list[str] = []
     if company_name:
         stopwords = {"inc", "corp", "ltd", "llc", "plc", "co", "group", "holdings", "the"}
-        words = [w for w in re.split(r"\W+", company_name.lower()) if w and w not in stopwords]
+        words = [w for w in re.split(r"\W+", company_name.lower())
+                 if w and w not in stopwords and len(w) >= 5]
         name_keywords = [w.upper() for w in words[:2]]
 
     for url, label in BROAD_FEEDS:
@@ -168,16 +170,23 @@ def fetch_broad_rss(ticker: str, company_name: str | None = None,
             if not item or item["url"] in seen_urls:
                 continue
 
-            text = (item["title"] + " " + (item["summary"] or "")).upper()
+            title_up  = item["title"].upper()
+            full_text = (item["title"] + " " + (item["summary"] or "")).upper()
+            t_up = ticker.upper()
 
-            # Accept if ticker is meaningfully present
-            if _ticker_mentioned(text, ticker):
+            # Explicit ticker notation anywhere in the article is a strong signal
+            if f"${t_up}" in full_text or f"({t_up})" in full_text:
                 seen_urls.add(item["url"])
                 results.append(item)
                 continue
 
-            # Accept if a company-name keyword appears as a whole word
-            if any(re.search(rf"\b{re.escape(kw)}\b", text) for kw in name_keywords):
+            # Ticker or company name must appear in the HEADLINE (not just the summary)
+            if _ticker_mentioned(title_up, ticker):
+                seen_urls.add(item["url"])
+                results.append(item)
+                continue
+
+            if any(re.search(rf"\b{re.escape(kw)}\b", title_up) for kw in name_keywords):
                 seen_urls.add(item["url"])
                 results.append(item)
 

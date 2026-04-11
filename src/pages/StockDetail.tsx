@@ -7,9 +7,9 @@ import { getWatchlist, addToWatchlist, removeFromWatchlist } from '../api/watchl
 import { useAuth } from '../store/useAuth';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  AreaChart, Area, ReferenceLine,
+  AreaChart, Area, ReferenceLine, ComposedChart, Bar, Legend,
 } from 'recharts';
-import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentTrend, getSentimentSummary, getRedditPulse, searchStocks, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentPoint, type SentimentSummary, type RedditPulse } from '../api/stocks';
+import { getStockDetail, getStockMentions, getStockChart, getSentimentHistory, getSentimentTrend, getSentimentSummary, getRedditPulse, searchStocks, getSentimentPriceOverlay, getSourceBreakdown, getAISummary, getRelatedStocks, type Mention, type ChartPoint, type Fundamentals, type SearchResult, type SentimentSnapshotPoint, type SentimentPoint, type SentimentSummary, type RedditPulse, type OverlayPoint, type SourceBreakdown, type RelatedStock } from '../api/stocks';
 import { getThreads, type Thread } from '../api/discuss';
 import { trackClick } from '../api/preferences';
 import { usePreferences } from '../store/usePreferences';
@@ -105,17 +105,17 @@ function FundamentalsGrid({ f }: { f: Fundamentals }) {
   );
 }
 
-const CHART_PERIODS = ['1D', '1W', '1M', '3M', '1Y'] as const;
+const CHART_PERIODS = ['6H', '1D', '1W', '1M', '3M', '1Y'] as const;
 type ChartPeriod = typeof CHART_PERIODS[number];
 
 function formatChartTime(isoTime: string, period: ChartPeriod) {
   const d = new Date(isoTime);
-  if (period === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  if (period === '6H' || period === '1D') return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   if (period === '1Y') return d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-function PriceChart({ symbol, isUp, defaultPeriod = '1M' }: { symbol: string; isUp: boolean; defaultPeriod?: ChartPeriod }) {
+function PriceChart({ symbol, isUp, defaultPeriod = '6H' }: { symbol: string; isUp: boolean; defaultPeriod?: ChartPeriod }) {
   const [period, setPeriod] = useState<ChartPeriod>(defaultPeriod);
   const color = isUp ? '#22c55e' : '#ef4444';
 
@@ -614,6 +614,81 @@ function MentionCard({ mention, featured = false }: { mention: Mention; featured
   return content;
 }
 
+// ── Related Stocks ────────────────────────────────────────────────────────────
+
+function RelatedStocksSection({ symbol }: { symbol: string }) {
+  const MONO_R: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
+
+  const { data, isLoading } = useQuery<RelatedStock[]>({
+    queryKey: ['related', symbol],
+    queryFn: () => getRelatedStocks(symbol),
+    staleTime: 60 * 60_000,
+  });
+
+  if (isLoading) return (
+    <div className="space-y-2">
+      <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>Related Stocks</h2>
+      <div className="flex gap-2 flex-wrap">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="h-20 w-28 animate-pulse rounded border" style={{ backgroundColor: 'var(--bg-surface)', borderColor: 'var(--border)' }} />
+        ))}
+      </div>
+    </div>
+  );
+
+  if (!data || data.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+        Also Mentioned With {symbol}
+      </h2>
+      <div className="flex gap-2 flex-wrap">
+        {data.map((s: RelatedStock) => {
+          const up = (s.change_pct ?? 0) >= 0;
+          const sentScore = s.sentiment_score ?? 0;
+          const sentColor = sentScore >= 0.05 ? '#22c55e' : sentScore <= -0.05 ? '#ef4444' : '#d97706';
+          return (
+            <Link
+              key={s.ticker}
+              to={`/app/stock/${s.ticker}`}
+              className="block border p-3 transition-colors hover:border-[var(--border-hover)]"
+              style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)', minWidth: 100 }}
+            >
+              <div className="font-black text-sm mb-0.5" style={{ color: 'var(--text-primary)', ...MONO_R }}>
+                {s.ticker}
+              </div>
+              {s.name && (
+                <div className="text-[10px] truncate max-w-[100px] mb-1" style={{ color: 'var(--text-muted)', ...MONO_R }}>
+                  {s.name.split(' ').slice(0, 2).join(' ')}
+                </div>
+              )}
+              {s.price != null && (
+                <div className="text-[11px] tabular-nums" style={{ color: 'var(--text-secondary)', ...MONO_R }}>
+                  ${s.price.toFixed(2)}
+                  {s.change_pct != null && (
+                    <span style={{ color: up ? '#22c55e' : '#ef4444' }}>
+                      {' '}{up ? '+' : ''}{s.change_pct.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
+              )}
+              {s.sentiment_label && (
+                <div className="mt-1 text-[9px] font-bold uppercase tracking-widest" style={{ color: sentColor, ...MONO_R }}>
+                  {s.sentiment_label}
+                </div>
+              )}
+              <div className="mt-1 text-[9px]" style={{ color: 'var(--text-muted)', ...MONO_R }}>
+                co-mentioned {s.co_count}×
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Ticker Not Found ──────────────────────────────────────────────────────────
 
 function TickerNotFound({ symbol }: { symbol: string }) {
@@ -773,6 +848,8 @@ export function StockDetail() {
     queryKey: ['stock', symbol],
     queryFn: () => getStockDetail(symbol!),
     enabled: !!symbol,
+    refetchInterval: 30_000,
+    staleTime: 25_000,
   });
 
   const { data: mentions, isLoading: mentionsLoading } = useQuery({
@@ -808,6 +885,29 @@ export function StockDetail() {
     enabled: !!symbol,
     staleTime: 10 * 60_000,
   });
+
+  const [overlayDays, setOverlayDays] = useState(30);
+  const { data: overlayData } = useQuery({
+    queryKey: ['sentiment-price-overlay', symbol, overlayDays],
+    queryFn: () => getSentimentPriceOverlay(symbol!, overlayDays),
+    enabled: !!symbol,
+    staleTime: 10 * 60_000,
+  });
+
+  const { data: sourcesData } = useQuery({
+    queryKey: ['source-breakdown', symbol],
+    queryFn: () => getSourceBreakdown(symbol!, 7),
+    enabled: !!symbol,
+    staleTime: 10 * 60_000,
+  });
+
+  const { data: aiSummary } = useQuery({
+    queryKey: ['ai-summary', symbol],
+    queryFn: () => getAISummary(symbol!),
+    enabled: !!symbol,
+    staleTime: 10 * 60 * 1000, // 10 minutes - expensive to regenerate
+  });
+
 
   // Compute delta: today's score vs yesterday's score
   const sentimentDelta = (() => {
@@ -917,6 +1017,26 @@ export function StockDetail() {
                       {Math.abs(stock.change_pct).toFixed(2)}%
                     </div>
                   )}
+                  <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest justify-end mt-0.5" style={{ color: 'var(--accent)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                    Live
+                  </span>
+                  {/* After-hours / pre-market price */}
+                  {(stock.post_market_price != null || stock.pre_market_price != null) && (
+                    <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[10px]" style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {stock.post_market_price != null ? 'After Hours' : 'Pre-Market'}
+                      </span>
+                      <span style={{ color: 'var(--text-secondary)' }}>
+                        ${(stock.post_market_price ?? stock.pre_market_price!).toFixed(2)}
+                      </span>
+                      {stock.ext_change_pct != null && (
+                        <span style={{ color: stock.ext_change_pct >= 0 ? '#22c55e' : '#ef4444' }}>
+                          {stock.ext_change_pct >= 0 ? '+' : ''}{stock.ext_change_pct.toFixed(2)}%
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -925,11 +1045,42 @@ export function StockDetail() {
           {/* Price chart */}
           <PriceChart symbol={stock.symbol} isUp={(stock.change_pct ?? 0) >= 0} defaultPeriod={prefs.default_timeframe as ChartPeriod} />
 
+          {/* AI Summary */}
+          {aiSummary?.available && aiSummary?.summary && (
+            <section>
+              <div className="border p-4" style={{ borderColor: 'var(--accent)', borderLeftWidth: 3, backgroundColor: 'var(--bg-surface)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--accent)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                    ✦ AI Summary
+                  </span>
+                  <span className="text-[9px]" style={{ color: 'var(--text-muted)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                    · {aiSummary.article_count} articles · powered by Claude
+                  </span>
+                </div>
+                <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)', fontFamily: '"IBM Plex Mono", monospace' }}>
+                  {aiSummary.summary}
+                </p>
+              </div>
+            </section>
+          )}
+
           {/* Sentiment Trend Chart */}
           {(() => {
             const MONO_T: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
             const trendData = (sentimentTrend ?? []) as SentimentPoint[];
             const totalArticles = trendData.reduce((s, p) => s + p.count, 0);
+            // Article count context: compare recent 7 days vs whole period average
+            const recentDays = trendData.slice(-7);
+            const recentTotal = recentDays.reduce((s, p) => s + p.count, 0);
+            const avgPerDay = trendData.length > 0 ? totalArticles / trendData.length : 0;
+            const recentAvgPerDay = recentDays.length > 0 ? recentTotal / recentDays.length : 0;
+            const articleContext = avgPerDay > 0 && trendData.length >= 14
+              ? recentAvgPerDay > avgPerDay * 1.3
+                ? { label: 'Above avg activity', color: '#16a34a' }
+                : recentAvgPerDay < avgPerDay * 0.7
+                ? { label: 'Below avg activity', color: '#d97706' }
+                : null
+              : null;
             return (
               <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -940,6 +1091,14 @@ export function StockDetail() {
                     {trendData.length > 0 && (
                       <span className="text-[10px] tabular-nums" style={{ color: 'var(--text-muted)', ...MONO_T }}>
                         {totalArticles} articles
+                      </span>
+                    )}
+                    {articleContext && (
+                      <span
+                        className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-px"
+                        style={{ color: articleContext.color, backgroundColor: `${articleContext.color}20`, ...MONO_T }}
+                      >
+                        {articleContext.label}
                       </span>
                     )}
                   </div>
@@ -1020,8 +1179,135 @@ export function StockDetail() {
             );
           })()}
 
+          {/* Sentiment vs Price Overlay */}
+          {(() => {
+            const MONO_O: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
+            const points = (overlayData ?? []) as OverlayPoint[];
+            const hasEnough = points.filter(p => p.sentiment !== null && p.price !== null).length >= 3;
+            return (
+              <div className="rounded-lg border p-5 space-y-4" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                    Sentiment vs Price
+                  </h2>
+                  <div className="flex gap-1 flex-wrap">
+                    {([7, 30, 90] as const).map((d) => (
+                      <button
+                        key={d}
+                        onClick={() => setOverlayDays(d)}
+                        className="rounded px-2 py-0.5 text-xs font-medium transition-colors"
+                        style={{
+                          backgroundColor: overlayDays === d ? 'var(--bg-elevated)' : 'transparent',
+                          color: overlayDays === d ? 'var(--text-primary)' : 'var(--text-muted)',
+                          border: '1px solid',
+                          borderColor: overlayDays === d ? 'var(--border-hover)' : 'transparent',
+                          ...MONO_O,
+                        }}
+                      >
+                        {d === 7 ? '7D' : d === 30 ? '30D' : '90D'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {!hasEnough ? (
+                  <p className="py-10 text-center text-sm" style={{ color: 'var(--text-muted)' }}>
+                    Not enough data for overlay
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <ComposedChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -20 }}>
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        interval="preserveStartEnd"
+                        tickFormatter={(v: string) => {
+                          const d = new Date(v);
+                          return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                        }}
+                      />
+                      <YAxis
+                        yAxisId="price"
+                        orientation="left"
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: number) => `$${v.toFixed(0)}`}
+                      />
+                      <YAxis
+                        yAxisId="sentiment"
+                        orientation="right"
+                        domain={[-1, 1]}
+                        tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={(v: number) => v.toFixed(1)}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
+                        labelStyle={{ color: 'var(--text-muted)' }}
+                        formatter={(value: number | null, name: string) => {
+                          if (value === null || value === undefined) return ['—', name];
+                          if (name === 'Price') return [`$${(value as number).toFixed(2)}`, name];
+                          return [`${(value as number) > 0 ? '+' : ''}${(value as number).toFixed(3)}`, name];
+                        }}
+                      />
+                      <Legend
+                        wrapperStyle={{ fontSize: 10, paddingTop: 4 }}
+                        formatter={(value) => <span style={{ color: 'var(--text-muted)', fontFamily: '"IBM Plex Mono", monospace' }}>{value}</span>}
+                      />
+                      <ReferenceLine yAxisId="sentiment" y={0} stroke="var(--border-hover)" strokeDasharray="3 3" />
+                      <Line
+                        yAxisId="price"
+                        type="monotone"
+                        dataKey="price"
+                        name="Price"
+                        stroke="var(--accent)"
+                        strokeWidth={1.5}
+                        dot={false}
+                        connectNulls
+                      />
+                      <Bar
+                        yAxisId="sentiment"
+                        dataKey="sentiment"
+                        name="Sentiment"
+                        fill="#22c55e"
+                        opacity={0.5}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Fundamentals */}
           {stock.fundamentals && <FundamentalsGrid f={stock.fundamentals} />}
+
+          {/* Coverage Sources */}
+          {sourcesData && sourcesData.length > 0 && (() => {
+            const MONO_S: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
+            return (
+              <div className="rounded-lg border p-5 space-y-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}>
+                <h2 className="text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  Coverage Sources
+                </h2>
+                <div className="space-y-1.5">
+                  {(sourcesData as SourceBreakdown[]).map(s => (
+                    <div key={s.source} className="flex items-center gap-2">
+                      <span className="text-[10px] w-32 truncate" style={{ color: 'var(--text-muted)', ...MONO_S }}>{s.source}</span>
+                      <div className="flex-1 h-1.5 rounded-full" style={{ background: 'var(--border)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: 'var(--accent)' }} />
+                      </div>
+                      <span className="text-[10px] w-8 text-right" style={{ color: 'var(--text-muted)', ...MONO_S }}>{s.pct}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Sentiment Summary */}
           {summaryLoading && (
@@ -1139,6 +1425,9 @@ export function StockDetail() {
               </motion.div>
             )}
           </div>
+
+          {/* Related Stocks */}
+          <RelatedStocksSection symbol={stock.symbol} />
 
           {/* Discussion */}
           <TickerDiscussion symbol={stock.symbol} />

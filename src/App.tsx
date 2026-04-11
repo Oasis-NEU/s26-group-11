@@ -21,6 +21,9 @@ const HowItWorks    = lazy(() => import('./pages/HowItWorks').then(m => ({ defau
 const Compare       = lazy(() => import('./pages/Compare').then(m => ({ default: m.Compare })));
 const Portfolio     = lazy(() => import('./pages/Portfolio').then(m => ({ default: m.Portfolio })));
 const Alerts        = lazy(() => import('./pages/Alerts').then(m => ({ default: m.Alerts })));
+const Screener      = lazy(() => import('./pages/Screener').then(m => ({ default: m.Screener })));
+const Heatmap       = lazy(() => import('./pages/Heatmap').then(m => ({ default: m.Heatmap })));
+const ActivityFeed  = lazy(() => import('./pages/ActivityFeed').then(m => ({ default: m.ActivityFeed })));
 
 function ThemeSync() {
   const theme = useTheme(s => s.theme);
@@ -85,6 +88,9 @@ function AnimatedRoutes() {
           <Route path="compare" element={<Compare />} />
           <Route path="portfolio" element={<Portfolio />} />
           <Route path="alerts" element={<Alerts />} />
+          <Route path="screener" element={<Screener />} />
+          <Route path="heatmap" element={<Heatmap />} />
+          <Route path="activity" element={<ActivityFeed />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

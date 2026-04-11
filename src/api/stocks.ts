@@ -10,6 +10,7 @@ export interface TrendingStock {
   sentiment_label: string | null;
   price: number | null;
   change_pct: number | null;
+  top_event_type?: string | null;
 }
 
 export interface ShifterStock {
@@ -58,6 +59,9 @@ export interface StockDetail {
   name: string | null;
   price: number | null;
   change_pct: number | null;
+  post_market_price: number | null;
+  pre_market_price: number | null;
+  ext_change_pct: number | null;
   market_cap: number | null;
   volume: number | null;
   exchange: string | null;
@@ -218,3 +222,87 @@ export interface CompareResult {
 export const compareStocks = (tickers: string[]) =>
   client.get<CompareResult[]>('/api/stocks/compare', { params: { tickers: tickers.join(',') } })
     .then((r) => r.data);
+
+export interface ScreenerResult {
+  ticker: string;
+  mention_count: number;
+  avg_sentiment: number;
+  avg_credibility: number;
+  sentiment_label: 'Bullish' | 'Bearish' | 'Neutral';
+}
+
+export interface ScreenerParams {
+  days?: number;
+  min_sentiment?: number;
+  max_sentiment?: number;
+  min_mentions?: number;
+  min_credibility?: number;
+  sort_by?: 'mentions' | 'sentiment' | 'credibility';
+}
+
+export const screenStocks = (params: ScreenerParams = {}) =>
+  client.get<ScreenerResult[]>('/api/stocks/screener', { params }).then((r) => r.data);
+
+export interface HeatmapStock {
+  ticker: string;
+  avg_sentiment: number;
+  mention_count: number;
+}
+
+export const getHeatmap = (days = 7) =>
+  client.get<HeatmapStock[]>('/api/stocks/heatmap', { params: { days } }).then((r) => r.data);
+
+export interface OverlayPoint {
+  date: string;
+  sentiment: number | null;
+  price: number | null;
+}
+
+export const getSentimentPriceOverlay = (ticker: string, days = 30) =>
+  client.get<OverlayPoint[]>(`/api/stocks/${ticker}/sentiment-price-overlay`, { params: { days } })
+    .then((r) => r.data);
+
+export interface SourceBreakdown {
+  source: string;
+  count: number;
+  pct: number;
+}
+
+export const getSourceBreakdown = (ticker: string, days = 7) =>
+  client.get<SourceBreakdown[]>(`/api/stocks/${ticker}/source-breakdown`, { params: { days } })
+    .then((r) => r.data);
+
+export interface AISummary {
+  summary: string | null;
+  available: boolean;
+  article_count?: number;
+  reason?: string;
+}
+
+export const getAISummary = (ticker: string) =>
+  client.get<AISummary>(`/api/stocks/${ticker}/ai-summary`).then((r) => r.data);
+
+export interface MarketSummary {
+  bullish: number;
+  bearish: number;
+  neutral: number;
+  total: number;
+  top_bullish: string[];
+  top_bearish: string[];
+}
+
+export const getMarketSummary = () =>
+  client.get<MarketSummary>('/api/stocks/market-summary').then((r) => r.data);
+
+export interface RelatedStock {
+  ticker: string;
+  name: string | null;
+  co_count: number;
+  price: number | null;
+  change_pct: number | null;
+  sentiment_score: number | null;
+  sentiment_label: string | null;
+}
+
+export const getRelatedStocks = (ticker: string) =>
+  client.get<RelatedStock[]>(`/api/stocks/${ticker}/related`).then((r) => r.data);

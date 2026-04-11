@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, useQueries } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Trash2, Plus, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Trash2, Plus, TrendingUp, TrendingDown, Minus, Lock } from 'lucide-react';
+import { useAuth } from '../store/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   getPortfolio, addPosition, removePosition,
@@ -38,11 +39,36 @@ function PnlBadge({ value, pct }: { value: number; pct: number }) {
 }
 
 export function Portfolio() {
+  const { isLoggedIn } = useAuth();
   const qc = useQueryClient();
   const [ticker, setTicker] = useState('');
   const [shares, setShares] = useState('');
   const [avgCost, setAvgCost] = useState('');
   const [formError, setFormError] = useState('');
+
+  // Show friendly auth wall instead of triggering a hard 401 redirect
+  if (!isLoggedIn()) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 gap-6 text-center">
+        <Lock className="h-8 w-8" style={{ color: 'var(--text-muted)' }} />
+        <div className="space-y-1">
+          <p className="font-semibold" style={{ color: 'var(--text-primary)', fontFamily: '"IBM Plex Mono", monospace' }}>
+            Sign in to use Portfolio
+          </p>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+            Track your positions and P&amp;L in real time.
+          </p>
+        </div>
+        <Link
+          to="/auth"
+          className="px-5 py-2 text-xs font-black uppercase tracking-widest transition-colors"
+          style={{ backgroundColor: 'var(--accent)', color: 'var(--bg-page)', fontFamily: '"IBM Plex Mono", monospace' }}
+        >
+          Sign In
+        </Link>
+      </div>
+    );
+  }
 
   const { data: portfolio, isLoading } = useQuery({
     queryKey: ['portfolio'],
@@ -54,7 +80,9 @@ export function Portfolio() {
     queries: (portfolio ?? []).map((item) => ({
       queryKey: ['stock', item.ticker],
       queryFn: () => getStockDetail(item.ticker),
-      staleTime: 60_000,
+      staleTime: 25_000,
+      refetchInterval: 30_000,
+      retry: false,
     })),
   });
 
@@ -152,12 +180,18 @@ export function Portfolio() {
       <motion.div variants={staggerItem} className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1
-              className="text-2xl font-black uppercase tracking-widest"
-              style={{ color: 'var(--text-primary)', ...MONO }}
-            >
-              Portfolio
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1
+                className="text-2xl font-black uppercase tracking-widest"
+                style={{ color: 'var(--text-primary)', ...MONO }}
+              >
+                Portfolio
+              </h1>
+              <span className="inline-flex items-center gap-1.5 text-[9px] uppercase tracking-widest" style={{ color: 'var(--accent)', fontFamily: MONO.fontFamily }}>
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+                Live
+              </span>
+            </div>
             <p className="text-xs mt-1 uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
               Track your positions
             </p>

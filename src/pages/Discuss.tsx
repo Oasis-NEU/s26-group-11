@@ -28,7 +28,7 @@ const cardStyle = { borderColor: 'var(--border)', backgroundColor: 'var(--bg-sur
 // ── Thread Skeleton ───────────────────────────────────────────────────────────
 
 function ThreadSkeleton() {
-  const SKL_MONO: React.CSSProperties = { fontFamily: "'JetBrains Mono', 'Fira Code', monospace" };
+  const SKL_MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
   return (
     <div className="border-b animate-pulse" style={{ borderColor: 'var(--border)', padding: '16px 0', ...SKL_MONO }}>
       <div className="h-3 w-16 rounded mb-2" style={{ background: 'var(--border)' }} />

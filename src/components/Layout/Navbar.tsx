@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Settings, Menu, X } from 'lucide-react';
+import { Settings, Menu, X, ChevronDown, Moon, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SearchBar } from '../SearchBar';
 import { useAuth } from '../../store/useAuth';
+import { useTheme } from '../../store/useTheme';
 import { Avatar } from '../Avatar';
 
 const MONO: React.CSSProperties = { fontFamily: '"IBM Plex Mono", monospace' };
@@ -20,20 +21,46 @@ function useDateDisplay() {
 export function Navbar() {
   const location    = useLocation();
   const { isLoggedIn, email, username, avatar_url } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const dateDisplay = useDateDisplay();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen,   setMenuOpen]   = useState(false);
+  const [extrasOpen, setExtrasOpen] = useState(false);
+  const extrasRef = useRef<HTMLDivElement>(null);
 
-  // Close mobile menu on route change
-  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+  // Close both menus on route change
+  useEffect(() => { setMenuOpen(false); setExtrasOpen(false); }, [location.pathname]);
 
-  const NAV_LINKS = [
-    { label: 'Feed',         path: '/app' },
-    { label: 'Discuss',      path: '/app/discuss' },
-    { label: 'Watchlist',    path: '/app/watchlists' },
-    { label: 'Portfolio',    path: '/app/portfolio' },
+  // Close extras dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (extrasRef.current && !extrasRef.current.contains(e.target as Node)) {
+        setExtrasOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Main nav links visible on desktop
+  const MAIN_NAV = [
+    { label: 'Feed',      path: '/app' },
+    { label: 'Discuss',   path: '/app/discuss' },
+    { label: 'Watchlist', path: '/app/watchlists' },
+    { label: 'Portfolio', path: '/app/portfolio' },
+    { label: 'Screener',  path: '/app/screener' },
+    { label: 'Activity',  path: '/app/activity' },
+  ];
+
+  // Extra tools — hidden behind "More ▾" on desktop
+  const EXTRAS_NAV = [
     { label: 'Compare',      path: '/app/compare' },
+    { label: 'Heatmap',      path: '/app/heatmap' },
+    { label: 'Alerts',       path: '/app/alerts' },
     { label: 'How It Works', path: '/app/how-it-works' },
   ];
+
+  // All links for the mobile menu
+  const ALL_NAV = [...MAIN_NAV, ...EXTRAS_NAV];
 
   function closeMenu() { setMenuOpen(false); }
 
@@ -63,7 +90,7 @@ export function Navbar() {
 
             {/* Nav links with sliding indicator */}
             <nav className="flex items-center">
-              {NAV_LINKS.slice(0, 5).map(({ label, path }) => {
+              {MAIN_NAV.map(({ label, path }) => {
                 const active = path === '/app'
                   ? location.pathname === '/app'
                   : location.pathname.startsWith(path);
@@ -86,7 +113,68 @@ export function Navbar() {
                   </Link>
                 );
               })}
+
+              {/* Extras "More ▾" dropdown */}
+              <div ref={extrasRef} className="relative">
+                <button
+                  onClick={() => setExtrasOpen((v) => !v)}
+                  className="relative flex items-center gap-0.5 px-3 py-1 text-[11px] font-bold uppercase tracking-widest transition-colors"
+                  style={{
+                    color: EXTRAS_NAV.some(({ path }) => location.pathname.startsWith(path))
+                      ? 'var(--text-primary)'
+                      : 'var(--text-muted)',
+                  }}
+                >
+                  More
+                  <ChevronDown size={10} style={{ transition: 'transform 0.15s', transform: extrasOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+                  {EXTRAS_NAV.some(({ path }) => location.pathname.startsWith(path)) && (
+                    <motion.div
+                      layoutId="nav-indicator"
+                      className="absolute bottom-0 left-0 right-0 h-[2px]"
+                      style={{ backgroundColor: 'var(--accent)' }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 40 }}
+                    />
+                  )}
+                </button>
+                <AnimatePresence>
+                  {extrasOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute right-0 top-full mt-1 border py-1 z-50 min-w-[140px]"
+                      style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}
+                    >
+                      {EXTRAS_NAV.map(({ label, path }) => {
+                        const active = location.pathname.startsWith(path);
+                        return (
+                          <Link
+                            key={path}
+                            to={path}
+                            className="block px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors hover:text-[var(--accent)]"
+                            style={{ color: active ? 'var(--accent)' : 'var(--text-muted)', ...MONO }}
+                          >
+                            {label}
+                          </Link>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </nav>
+
+            {/* Dark/Light mode toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 transition-colors hover:text-[var(--accent)]"
+              style={{ color: 'var(--text-muted)' }}
+              aria-label="Toggle dark/light mode"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            </button>
 
             {/* Auth / Settings */}
             {isLoggedIn() ? (
@@ -157,7 +245,7 @@ export function Navbar() {
 
               {/* Nav links */}
               <nav className="flex flex-col gap-1">
-                {NAV_LINKS.map(({ label, path }) => {
+                {ALL_NAV.map(({ label, path }) => {
                   const active = path === '/app'
                     ? location.pathname === '/app'
                     : location.pathname.startsWith(path);

@@ -5,6 +5,7 @@
   --bg-surface: #f8f8f8;
   --bg-elevated: #f0f0f0;
   --border: #e2e2e2;
+  --border-hover: #c8c8c8;
   --border-strong: #b8b8b8;
   --text-primary: #0f0f0f;
   --text-secondary: #525252;
@@ -23,7 +24,8 @@
   --bg-surface: #111111;
   --bg-elevated: #1a1a1a;
   --border: #242424;
-  --border-strong: #3a3a3a;
+  --border-hover: #3a3a3a;
+  --border-strong: #505050;
   --text-primary: #f0f0f0;
   --text-secondary: #9a9a9a;
   --text-muted: #545454;
@@ -73,6 +75,14 @@
 /* Pause ticker on hover */
 .ticker-tape:hover > div {
   animation-play-state: paused;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 @keyframes slide-in-right {

@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../store/useToast';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Check, Eye, EyeOff, AlignCenter, AlignJustify, Sun, Moon, Camera, Trash2, Bell } from 'lucide-react';
+import { Check, Eye, EyeOff, AlignCenter, AlignJustify, Sun, Moon, Camera, Trash2, Bell, Activity } from 'lucide-react';
 import { getMe, updateProfile } from '../api/auth';
 import { useAuth } from '../store/useAuth';
 import { getFollowers, getFollowing } from '../api/users';

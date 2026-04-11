@@ -230,10 +230,19 @@ def _is_relevant(title: str, summary: str | None, ticker: str,
     """
     True if the article is plausibly about this company AND has financial context.
     Used as a last-resort gate before persisting any article from any source.
+
+    Design:
+    - Explicit ticker notation ($TICKER / (TICKER)) anywhere is always a strong
+      signal and accepted immediately regardless of where it appears.
+    - Otherwise the ticker or company name MUST appear in the TITLE (not buried
+      in the summary) to avoid tangential mentions counting as categorisation.
+    - Company-name keywords shorter than 5 chars (e.g. "KEY", "ACE", "MO") are
+      skipped because they match too many unrelated English words.
     """
     import re as _re
-    text = (title + " " + (summary or "")).upper()
-    t    = ticker.upper()
+    title_up = title.upper()
+    text     = (title + " " + (summary or "")).upper()
+    t        = ticker.upper()
     title_lower = title.lower()
 
     # Hard reject: obvious sports/entertainment noise titles
@@ -241,31 +250,31 @@ def _is_relevant(title: str, summary: str | None, ticker: str,
         if noise in title_lower:
             return False
 
-    # Must contain at least one finance keyword OR explicit ticker notation
-    has_finance_context = (
-        f"${t}" in text
-        or f"({t})" in text
-        or any(kw in text.lower() for kw in _FINANCE_KEYWORDS)
-    )
-    if not has_finance_context:
+    # Explicit notation anywhere → accept, UNLESS this is a multi-ticker post
+    # (e.g. "$SPY $AMZN $AAPL $META $MU ..." — not useful signal for any one stock).
+    if f"${t}" in text or f"({t})" in text:
+        unique_tickers = len(_re.findall(r'\$[A-Z]{1,6}', text))
+        if unique_tickers >= 4:
+            return False   # multi-ticker noise
+        return True
+
+    # Must have at least one finance keyword in the combined text
+    if not any(kw in text.lower() for kw in _FINANCE_KEYWORDS):
         return False
 
-    # $TICKER always counts
-    if f"${t}" in text:
+    # Ticker must be present in the TITLE (not just the summary)
+    if _ticker_mentioned(title_up, t):
         return True
 
-    # Ticker-specific: use word-boundary for long tickers only
-    if _ticker_mentioned(text, t):
-        return True
-
-    # Company name keyword check
+    # Company name check: keyword must be in the TITLE and ≥ 5 chars
+    # (short words like "key", "ace", "real" are too ambiguous)
     if company_name:
         stopwords = {"inc", "corp", "ltd", "llc", "plc", "co", "group",
                      "holdings", "the", "and", "&"}
         words = [w for w in _re.split(r"\W+", company_name.lower())
-                 if w and w not in stopwords]
+                 if w and w not in stopwords and len(w) >= 5]
         for kw in words[:2]:
-            if _re.search(rf"\b{_re.escape(kw.upper())}\b", text):
+            if _re.search(rf"\b{_re.escape(kw.upper())}\b", title_up):
                 return True
 
     return False
@@ -291,8 +300,9 @@ def ingest_news_for_ticker(ticker: str, days: int = 7) -> list[NewsMentionDTO]:
 
     def _run_newsapi():
         try:
-            # For short ambiguous tickers, search by company name if available
-            query = f'"{company_name}"' if (company_name and len(ticker) <= 2) else ticker
+            # Always prefer quoted company name over bare ticker symbol to avoid
+            # matching common English words (e.g. "COST" → "cost reduction" noise).
+            query = f'"{company_name}"' if company_name else ticker
             raw = search_news(query=query, from_date=from_date,
                               to_date=to_date, page_size=30)
             return _newsapi_to_dtos(raw, ticker)

@@ -15,6 +15,30 @@ from app.services.sentiment import label as sentiment_label, weighted_aggregate
 stocks_bp = Blueprint("stocks", __name__)
 
 
+def _get_extended_hours(ticker: str) -> dict:
+    """Return pre/post-market price and change% from yfinance fast_info."""
+    try:
+        fi = yf.Ticker(ticker).fast_info
+        pm   = getattr(fi, "post_market_price",  None)
+        prem = getattr(fi, "pre_market_price",   None)
+        prev = getattr(fi, "regular_market_previous_close", None)
+        ref  = float(prev) if prev and float(prev) > 0 else None
+        result: dict = {}
+        if pm and float(pm) > 0:
+            p = round(float(pm), 2)
+            result["post_market_price"] = p
+            if ref:
+                result["ext_change_pct"] = round((p / ref - 1) * 100, 2)
+        elif prem and float(prem) > 0:
+            p = round(float(prem), 2)
+            result["pre_market_price"] = p
+            if ref:
+                result["ext_change_pct"] = round((p / ref - 1) * 100, 2)
+        return result
+    except Exception:
+        return {}
+
+
 def _mention_to_dict(m: Mention) -> dict:
     score = m.sentiment_score
     return {
@@ -186,22 +210,89 @@ def trending():
         for s in Stock.query.filter(Stock.ticker.in_(tickers)).all()
     }
 
+    # Top event type per ticker (most common non-null, non-'other' event in window)
+    event_rows = (
+        db.session.query(
+            Mention.ticker,
+            Mention.event_type,
+            func.count(Mention.id).label("cnt"),
+        )
+        .filter(
+            Mention.ticker.in_(tickers),
+            Mention.published_at >= cutoff,
+            Mention.event_type.isnot(None),
+            Mention.event_type != "other",
+        )
+        .group_by(Mention.ticker, Mention.event_type)
+        .order_by(Mention.ticker, func.count(Mention.id).desc())
+        .all()
+    )
+    event_map: dict = {}
+    for r in event_rows:
+        if r.ticker not in event_map:   # first = most common per ticker
+            event_map[r.ticker] = r.event_type
+
     results = []
     for ticker, mention_count in rows:
         sent = sentiment_map.get(ticker, {"score": None, "count": 0})
         results.append({
             "ticker": ticker,
             "symbol": ticker,
-            "name":          stock_names.get(ticker),
-            "mention_count": mention_count,
+            "name":            stock_names.get(ticker),
+            "mention_count":   mention_count,
             "sentiment_score": sent["score"],
             "sentiment_count": sent["count"],
             "sentiment_label": sentiment_label(sent["score"]) if sent["score"] is not None else None,
-            "price": prices.get(ticker, {}).get("price"),
-            "change_pct": prices.get(ticker, {}).get("change_pct"),
+            "price":           prices.get(ticker, {}).get("price"),
+            "change_pct":      prices.get(ticker, {}).get("change_pct"),
+            "top_event_type":  event_map.get(ticker),
         })
     cache_set("trending", results, ttl=300)
     return jsonify(results)
+
+
+# ─── Market Summary ──────────────────────────────────────────────────────────
+
+@stocks_bp.route("/market-summary")
+def market_summary():
+    """Aggregate 24h market sentiment: bullish/bearish/neutral counts + top movers."""
+    cached = cache_get("market-summary")
+    if cached is not None:
+        return jsonify(cached)
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+    rows = (
+        db.session.query(
+            Mention.ticker,
+            func.avg(Mention.sentiment_score).label("avg_sent"),
+            func.count(Mention.id).label("cnt"),
+        )
+        .filter(
+            Mention.published_at >= cutoff,
+            Mention.sentiment_score.isnot(None),
+        )
+        .group_by(Mention.ticker)
+        .having(func.count(Mention.id) >= 3)
+        .all()
+    )
+
+    bullish_tickers = [r for r in rows if (r.avg_sent or 0) >= 0.05]
+    bearish_tickers = [r for r in rows if (r.avg_sent or 0) <= -0.05]
+    neutral_tickers = [r for r in rows if -0.05 < (r.avg_sent or 0) < 0.05]
+
+    bullish_tickers.sort(key=lambda r: r.avg_sent or 0, reverse=True)
+    bearish_tickers.sort(key=lambda r: r.avg_sent or 0)
+
+    result = {
+        "bullish": len(bullish_tickers),
+        "bearish": len(bearish_tickers),
+        "neutral": len(neutral_tickers),
+        "total":   len(rows),
+        "top_bullish": [r.ticker for r in bullish_tickers[:4]],
+        "top_bearish": [r.ticker for r in bearish_tickers[:4]],
+    }
+    cache_set("market-summary", result, ttl=300)
+    return jsonify(result)
 
 
 # ─── Shifters ────────────────────────────────────────────────────────────────
@@ -361,6 +452,7 @@ def search():
 # ─── Chart (yfinance — history API has no Finnhub free equivalent) ────────────
 
 CHART_PERIODS = {
+    "6h": ("1d",  "5m"),   # same feed as 1d but trimmed to last 6 h
     "1d": ("1d",  "5m"),
     "1w": ("5d",  "1h"),
     "1m": ("1mo", "1d"),
@@ -649,8 +741,6 @@ def sentiment_history(ticker: str):
     days = max(1, min(90, days))
     ticker = ticker.upper()
 
-    import datetime as _dt
-
     since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
 
     rows = (
@@ -690,6 +780,13 @@ def stock_chart(ticker: str):
         hist = yf.Ticker(ticker).history(period=yf_period, interval=interval)
         if hist.empty:
             return jsonify([])
+        # For 6h, trim to the last 6 hours of available data
+        if period == "6h" and not hist.empty:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=6)
+            try:
+                hist = hist[hist.index.tz_convert("UTC") >= cutoff]
+            except Exception:
+                pass
         data = [
             {
                 "time": ts.isoformat(),
@@ -779,6 +876,288 @@ def compare_stocks():
     return jsonify(results)
 
 
+# ─── Screener ────────────────────────────────────────────────────────────────
+
+@stocks_bp.route("/screener")
+def screener():
+    """Screen stocks by sentiment, mentions, and credibility."""
+    days = request.args.get("days", 7, type=int)
+    min_sentiment = request.args.get("min_sentiment", -1.0, type=float)
+    max_sentiment = request.args.get("max_sentiment", 1.0, type=float)
+    min_mentions = request.args.get("min_mentions", 1, type=int)
+    min_credibility = request.args.get("min_credibility", 0, type=int)
+    sort_by = request.args.get("sort_by", "mentions")  # mentions | sentiment | credibility
+    limit = min(request.args.get("limit", 50, type=int), 100)
+
+    since = datetime.utcnow() - timedelta(days=days)
+
+    rows = (
+        db.session.query(
+            Mention.ticker,
+            func.count(Mention.id).label("mention_count"),
+            func.avg(Mention.sentiment_score).label("avg_sentiment"),
+            func.avg(Mention.credibility_score).label("avg_credibility"),
+        )
+        .filter(
+            Mention.published_at >= since,
+            Mention.sentiment_score.isnot(None),
+        )
+        .group_by(Mention.ticker)
+        .having(
+            func.count(Mention.id) >= min_mentions,
+            func.avg(Mention.sentiment_score) >= min_sentiment,
+            func.avg(Mention.sentiment_score) <= max_sentiment,
+            func.avg(Mention.credibility_score) >= min_credibility,
+        )
+        .all()
+    )
+
+    results = [
+        {
+            "ticker": r.ticker,
+            "mention_count": r.mention_count,
+            "avg_sentiment": round(float(r.avg_sentiment or 0), 4),
+            "avg_credibility": round(float(r.avg_credibility or 0), 1),
+            "sentiment_label": (
+                "Bullish" if (r.avg_sentiment or 0) > 0.05
+                else "Bearish" if (r.avg_sentiment or 0) < -0.05
+                else "Neutral"
+            ),
+        }
+        for r in rows
+    ]
+
+    # Sort
+    if sort_by == "sentiment":
+        results.sort(key=lambda x: x["avg_sentiment"], reverse=True)
+    elif sort_by == "credibility":
+        results.sort(key=lambda x: x["avg_credibility"], reverse=True)
+    else:
+        results.sort(key=lambda x: x["mention_count"], reverse=True)
+
+    return jsonify(results[:limit])
+
+
+# ─── Heatmap ─────────────────────────────────────────────────────────────────
+
+@stocks_bp.route("/heatmap")
+def heatmap():
+    """Return all stocks with recent sentiment for heatmap display."""
+    days = request.args.get("days", 7, type=int)
+    since = datetime.utcnow() - timedelta(days=days)
+
+    rows = (
+        db.session.query(
+            Mention.ticker,
+            func.avg(Mention.sentiment_score).label("avg_sentiment"),
+            func.count(Mention.id).label("mention_count"),
+        )
+        .filter(
+            Mention.published_at >= since,
+            Mention.sentiment_score.isnot(None),
+        )
+        .group_by(Mention.ticker)
+        .having(func.count(Mention.id) >= 2)
+        .all()
+    )
+
+    return jsonify([
+        {
+            "ticker": r.ticker,
+            "avg_sentiment": round(float(r.avg_sentiment or 0), 4),
+            "mention_count": r.mention_count,
+        }
+        for r in sorted(rows, key=lambda x: abs(x.avg_sentiment or 0), reverse=True)
+    ])
+
+
+# ─── Sentiment-Price Overlay ──────────────────────────────────────────────────
+
+@stocks_bp.route("/<ticker>/sentiment-price-overlay")
+def sentiment_price_overlay(ticker: str):
+    """Return daily sentiment + closing price for overlay chart."""
+    days = request.args.get("days", 30, type=int)
+    days = max(7, min(90, days))
+    ticker = ticker.upper()
+    since = datetime.utcnow() - timedelta(days=days)
+
+    sentiment_rows = (
+        db.session.query(
+            func.date(Mention.published_at).label("day"),
+            func.avg(Mention.sentiment_score).label("avg_score"),
+            func.count(Mention.id).label("count"),
+        )
+        .filter(Mention.ticker == ticker, Mention.published_at >= since)
+        .group_by(func.date(Mention.published_at))
+        .order_by(func.date(Mention.published_at))
+        .all()
+    )
+
+    # Get price history via yfinance
+    try:
+        yf_period = "3mo" if days >= 60 else ("1mo" if days >= 20 else "1mo")
+        hist = yf.Ticker(ticker).history(period=yf_period, interval="1d")
+        prices: dict = {}
+        if not hist.empty:
+            for ts, row in hist.iterrows():
+                day = ts.strftime("%Y-%m-%d")
+                prices[day] = round(float(row["Close"]), 2)
+    except Exception:
+        prices = {}
+
+    sentiment_map = {str(r.day): round(float(r.avg_score or 0), 4) for r in sentiment_rows}
+    all_days = sorted(set(list(sentiment_map.keys()) + list(prices.keys())))
+
+    return jsonify([
+        {
+            "date": day,
+            "sentiment": sentiment_map.get(day),
+            "price": prices.get(day),
+        }
+        for day in all_days
+        if sentiment_map.get(day) is not None or prices.get(day) is not None
+    ])
+
+
+# ─── Source Breakdown ─────────────────────────────────────────────────────────
+
+@stocks_bp.route("/<ticker>/source-breakdown")
+def source_breakdown(ticker: str):
+    """Return news source distribution for a ticker."""
+    days = request.args.get("days", 7, type=int)
+    ticker = ticker.upper()
+    since = datetime.utcnow() - timedelta(days=days)
+
+    rows = (
+        db.session.query(
+            Mention.source_domain,
+            func.count(Mention.id).label("count"),
+        )
+        .filter(Mention.ticker == ticker, Mention.published_at >= since)
+        .group_by(Mention.source_domain)
+        .order_by(func.count(Mention.id).desc())
+        .limit(8)
+        .all()
+    )
+
+    total = sum(r.count for r in rows) or 1
+    return jsonify([
+        {
+            "source": r.source_domain or "unknown",
+            "count": r.count,
+            "pct": round(r.count / total * 100, 1),
+        }
+        for r in rows
+    ])
+
+
+# ─── AI Summary ──────────────────────────────────────────────────────────────
+
+@stocks_bp.route("/<ticker>/ai-summary")
+def ai_summary(ticker: str):
+    """Generate an AI summary of recent news for a ticker."""
+    from app.core import config
+    if not config.ANTHROPIC_API_KEY:
+        return jsonify({"summary": None, "available": False})
+
+    ticker = ticker.upper()
+    since = datetime.utcnow() - timedelta(days=7)
+
+    # Get recent articles
+    mentions = (
+        Mention.query
+        .filter(Mention.ticker == ticker, Mention.published_at >= since)
+        .order_by(Mention.published_at.desc())
+        .limit(10)
+        .all()
+    )
+
+    if not mentions:
+        return jsonify({"summary": None, "available": True, "reason": "No recent articles"})
+
+    articles = [
+        {
+            "title": m.title,
+            "summary": m.summary,
+            "source_domain": m.source_domain,
+            "sentiment_score": m.sentiment_score,
+        }
+        for m in mentions
+    ]
+
+    from app.services.ai_summary import generate_stock_summary
+    summary = generate_stock_summary(ticker, articles)
+
+    return jsonify({
+        "summary": summary,
+        "available": True,
+        "article_count": len(mentions),
+    })
+
+
+# ─── Macro Themes ─────────────────────────────────────────────────────────────
+
+@stocks_bp.route("/themes")
+def macro_themes():
+    """Return trending macro themes based on keyword clustering of recent articles."""
+    import re
+    from collections import defaultdict
+
+    days = request.args.get("days", 7, type=int)
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+
+    # Fetch recent article titles and summaries
+    mentions = (
+        Mention.query
+        .filter(Mention.published_at >= since)
+        .with_entities(Mention.title, Mention.summary, Mention.sentiment_score, Mention.ticker)
+        .limit(500)
+        .all()
+    )
+
+    # Theme definitions: name -> keywords to match
+    THEMES = {
+        "AI & Semiconductors": ["artificial intelligence", "ai", "chip", "semiconductor", "nvidia", "amd", "cuda", "gpu", "llm", "machine learning", "data center"],
+        "Fed & Interest Rates": ["federal reserve", "fed", "interest rate", "rate cut", "rate hike", "inflation", "cpi", "fomc", "powell", "monetary policy", "treasury yield"],
+        "Big Tech Earnings": ["earnings", "revenue", "profit", "quarterly results", "beat estimates", "guidance", "eps", "apple", "microsoft", "google", "meta", "amazon"],
+        "Electric Vehicles": ["electric vehicle", "ev", "tesla", "rivian", "lucid", "charging", "battery", "autonomous", "self-driving"],
+        "China & Trade": ["china", "tariff", "trade war", "export", "import", "xi", "beijing", "supply chain", "manufacturing"],
+        "Crypto & Digital Assets": ["bitcoin", "crypto", "ethereum", "blockchain", "defi", "nft", "coinbase", "digital asset", "web3"],
+        "Energy & Oil": ["oil", "energy", "opec", "crude", "natural gas", "renewable", "solar", "wind", "exxon", "chevron"],
+        "Banking & Finance": ["bank", "fdic", "lending", "credit", "jpmorgan", "goldman", "morgan stanley", "interest", "loan", "deposit"],
+        "Healthcare & Biotech": ["drug", "fda", "clinical trial", "biotech", "pharma", "vaccine", "cancer", "approval", "pfizer", "moderna"],
+        "M&A & Deals": ["acquisition", "merger", "deal", "buyout", "takeover", "private equity", "ipo", "spac", "funding round"],
+    }
+
+    theme_data = defaultdict(lambda: {"count": 0, "sentiment_sum": 0.0, "tickers": set()})
+
+    for m in mentions:
+        text = ((m.title or "") + " " + (m.summary or "")).lower()
+        for theme_name, keywords in THEMES.items():
+            if any(kw in text for kw in keywords):
+                td = theme_data[theme_name]
+                td["count"] += 1
+                td["sentiment_sum"] += float(m.sentiment_score or 0)
+                if m.ticker:
+                    td["tickers"].add(m.ticker)
+
+    results = []
+    for theme_name, td in theme_data.items():
+        if td["count"] < 2:
+            continue
+        avg_sentiment = td["sentiment_sum"] / td["count"]
+        results.append({
+            "theme": theme_name,
+            "article_count": td["count"],
+            "avg_sentiment": round(avg_sentiment, 4),
+            "sentiment_label": "Bullish" if avg_sentiment > 0.05 else "Bearish" if avg_sentiment < -0.05 else "Neutral",
+            "top_tickers": list(td["tickers"])[:5],
+        })
+
+    results.sort(key=lambda x: x["article_count"], reverse=True)
+    return jsonify(results)
+
+
 # ─── Stock Detail ─────────────────────────────────────────────────────────────
 
 @stocks_bp.route("/<ticker>")
@@ -801,12 +1180,26 @@ def stock_detail(ticker: str):
     all_scored_mentions = get_news_for_ticker(ticker, days=7, limit=60)
     mentions = all_scored_mentions[:10]
 
-    # Finnhub quote + fundamentals in parallel — both have their own caches
-    with ThreadPoolExecutor(max_workers=2) as pool:
+    # Finnhub quote + fundamentals + extended-hours data in parallel
+    with ThreadPoolExecutor(max_workers=3) as pool:
         f_quote = pool.submit(get_quote, ticker)
         f_fund  = pool.submit(get_fundamentals, ticker)
-        price_data   = f_quote.result()
-        fundamentals = f_fund.result()
+        f_ext   = pool.submit(_get_extended_hours, ticker)
+        try:
+            price_data = f_quote.result()
+        except Exception as e:
+            print(f"[stocks] Finnhub quote failed for {ticker}: {e}")
+            price_data = {}
+        try:
+            fundamentals = f_fund.result()
+        except Exception as e:
+            print(f"[stocks] Finnhub fundamentals failed for {ticker}: {e}")
+            fundamentals = {}
+        try:
+            ext_data = f_ext.result()
+        except Exception as e:
+            print(f"[stocks] Extended hours failed for {ticker}: {e}")
+            ext_data = {}
 
     # ── 404 guard: no price from Finnhub + no mentions = ticker doesn't exist ──
     if price_data.get("price") is None and not mentions:
@@ -898,8 +1291,11 @@ def stock_detail(ticker: str):
         "ticker": ticker,
         "symbol": ticker,
         "name": name,
-        "price":      price_data.get("price"),
-        "change_pct": price_data.get("change_pct"),
+        "price":             price_data.get("price"),
+        "change_pct":        price_data.get("change_pct"),
+        "post_market_price": ext_data.get("post_market_price"),
+        "pre_market_price":  ext_data.get("pre_market_price"),
+        "ext_change_pct":    ext_data.get("ext_change_pct"),
         "fundamentals": full_fundamentals,
         "market_cap": fundamentals.get("market_cap"),
         "volume": None,
@@ -919,3 +1315,79 @@ def stock_detail(ticker: str):
         "history": history,
         "mentions": [_mention_to_dict(m) for m in mentions],
     })
+
+
+# ─── Related Stocks ───────────────────────────────────────────────────────────
+
+@stocks_bp.route("/<ticker>/related")
+def related_stocks(ticker: str):
+    """
+    Tickers that frequently appear in the same articles as this ticker
+    (co-mention analysis over the last 30 days).
+    """
+    ticker = ticker.upper()
+    cache_key = f"related:{ticker}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return jsonify(cached)
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=30)
+    from sqlalchemy.orm import aliased
+
+    M2 = aliased(Mention)
+    co_rows = (
+        db.session.query(M2.ticker, func.count(M2.id).label("co_count"))
+        .join(Mention, (Mention.url == M2.url) & (M2.ticker != ticker))
+        .filter(
+            Mention.ticker == ticker,
+            Mention.published_at >= cutoff,
+            Mention.url.isnot(None),
+            M2.ticker.isnot(None),
+        )
+        .group_by(M2.ticker)
+        .order_by(func.count(M2.id).desc())
+        .limit(6)
+        .all()
+    )
+
+    if not co_rows:
+        cache_set(cache_key, [], ttl=3600)
+        return jsonify([])
+
+    related_tickers = [r.ticker for r in co_rows]
+    prices = get_quote_batch(related_tickers)
+    stock_names = {
+        s.ticker: s.name
+        for s in Stock.query.filter(Stock.ticker.in_(related_tickers)).all()
+    }
+    # Quick sentiment for related tickers
+    sent_rows = (
+        db.session.query(
+            Mention.ticker,
+            func.avg(Mention.sentiment_score).label("avg_sent"),
+        )
+        .filter(
+            Mention.ticker.in_(related_tickers),
+            Mention.published_at >= datetime.now(timezone.utc) - timedelta(days=7),
+            Mention.sentiment_score.isnot(None),
+        )
+        .group_by(Mention.ticker)
+        .all()
+    )
+    sent_map = {r.ticker: round(float(r.avg_sent), 4) for r in sent_rows}
+
+    result = [
+        {
+            "ticker":          r.ticker,
+            "name":            stock_names.get(r.ticker),
+            "co_count":        r.co_count,
+            "price":           prices.get(r.ticker, {}).get("price"),
+            "change_pct":      prices.get(r.ticker, {}).get("change_pct"),
+            "sentiment_score": sent_map.get(r.ticker),
+            "sentiment_label": sentiment_label(sent_map.get(r.ticker)) if sent_map.get(r.ticker) is not None else None,
+        }
+        for r in co_rows
+    ]
+    cache_set(cache_key, result, ttl=3600)
+    return jsonify(result)
+

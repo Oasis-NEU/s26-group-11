@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -131,3 +131,73 @@ def follow_status(uid: int):
     me = int(me_str)
     existing = Follow.query.filter_by(follower_id=me, following_id=uid).first()
     return jsonify({"following": bool(existing)})
+
+
+@users_bp.route("/activity-feed", methods=["GET"])
+@jwt_required()
+def activity_feed():
+    """Return recent activity from users the current user follows."""
+    me = int(get_jwt_identity())
+    limit = request.args.get("limit", 30, type=int)
+
+    from app.db.models import ThreadVote
+    following_ids = [f.following_id for f in Follow.query.filter_by(follower_id=me).all()]
+
+    if not following_ids:
+        return jsonify([])
+
+    activities = []
+
+    # Recent threads posted by followed users
+    threads = (
+        Thread.query
+        .filter(Thread.user_id.in_(following_ids))
+        .order_by(Thread.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    for t in threads:
+        user = db.session.get(User, t.user_id)
+        activities.append({
+            "type": "thread",
+            "id": f"thread-{t.id}",
+            "user_id": t.user_id,
+            "username": user.username if user else "unknown",
+            "action": "posted",
+            "ticker": t.ticker,
+            "thread_id": t.id,
+            "thread_title": t.title,
+            "score": t.upvotes,
+            "created_at": _iso(t.created_at),
+        })
+
+    # Recent votes by followed users
+    votes = (
+        ThreadVote.query
+        .filter(ThreadVote.user_id.in_(following_ids))
+        .join(Thread, Thread.id == ThreadVote.thread_id)
+        .order_by(ThreadVote.id.desc())
+        .limit(20)
+        .all()
+    )
+    for v in votes:
+        thread = db.session.get(Thread, v.thread_id)
+        user = db.session.get(User, v.user_id)
+        if not thread or not user:
+            continue
+        activities.append({
+            "type": "vote",
+            "id": f"vote-{v.id}",
+            "user_id": v.user_id,
+            "username": user.username if user else "unknown",
+            "action": "bullish" if v.value == 1 else "bearish",
+            "ticker": thread.ticker,
+            "thread_id": thread.id,
+            "thread_title": thread.title,
+            "created_at": _iso(thread.created_at),
+        })
+
+    # Sort all activities by created_at descending
+    activities.sort(key=lambda x: x["created_at"] or "", reverse=True)
+
+    return jsonify(activities[:limit])

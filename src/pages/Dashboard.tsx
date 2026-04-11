@@ -7,8 +7,8 @@ import {
   BarChart, Bar, XAxis, YAxis, Cell, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import {
-  getTrending, getShifters, getFeed, getEarnings,
-  type TrendingStock, type ShifterStock, type Mention, type FeedSince,
+  getTrending, getShifters, getFeed, getEarnings, getMarketSummary,
+  type TrendingStock, type ShifterStock, type Mention, type FeedSince, type MarketSummary,
 } from '../api/stocks';
 import { getPersonalizedFeed } from '../api/preferences';
 import { usePreferences } from '../store/usePreferences';
@@ -282,11 +282,17 @@ function CredBadge({ score }: { score: number }) {
   const high = score >= 80;
   const med = score >= 60;
   const color = high ? 'var(--accent)' : med ? '#d97706' : 'var(--text-muted)';
-  const label = high ? 'High credibility' : med ? 'Medium credibility' : 'Low credibility';
+  const label = high ? 'High credibility' : med ? 'Med credibility' : 'Low credibility';
+  const tooltip = high
+    ? `Credibility ${score}/100 — major financial outlet with strong editorial standards`
+    : med
+    ? `Credibility ${score}/100 — known financial source`
+    : `Credibility ${score}/100 — source credibility is lower or unknown`;
   return (
     <span
-      className="text-[10px] font-black uppercase tracking-widest"
+      className="text-[10px] font-black uppercase tracking-widest cursor-help"
       style={{ color, ...MONO }}
+      title={tooltip}
     >
       {label}
     </span>
@@ -554,6 +560,38 @@ function StockTile({ stock }: { stock: TrendingStock }) {
           </span>
         </div>
       )}
+
+      {/* Event type tag if present */}
+      {stock.top_event_type && stock.top_event_type !== 'other' && (() => {
+        const eventColor: Record<string, string> = {
+          earnings_beat: '#16a34a', earnings_miss: '#dc2626',
+          guidance_up: '#16a34a',   guidance_down: '#dc2626',
+          fda_approval: '#2563eb',  fda_rejection: '#dc2626',
+          acquisition: '#7c3aed',   ceo_change: '#d97706',
+          layoffs: '#dc2626',       partnership: '#0891b2',
+          buyback: '#16a34a',       ipo: '#7c3aed',
+        };
+        const eventLabel: Record<string, string> = {
+          earnings_beat: 'Earnings Beat', earnings_miss: 'Earnings Miss',
+          guidance_up: 'Guidance Up',     guidance_down: 'Guidance Down',
+          fda_approval: 'FDA Approval',   fda_rejection: 'FDA Rejection',
+          acquisition: 'Acquisition',     ceo_change: 'CEO Change',
+          layoffs: 'Layoffs',             partnership: 'Partnership',
+          buyback: 'Buyback',             ipo: 'IPO',
+        };
+        const c = eventColor[stock.top_event_type] ?? '#888';
+        const l = eventLabel[stock.top_event_type] ?? stock.top_event_type;
+        return (
+          <div className="mb-2">
+            <span
+              className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5"
+              style={{ color: c, backgroundColor: `${c}20`, border: `1px solid ${c}44`, ...MONO }}
+            >
+              {l}
+            </span>
+          </div>
+        );
+      })()}
 
       {/* Bottom row: articles left, scored right */}
       <div className="flex items-center justify-between">
@@ -961,6 +999,68 @@ function TickerGroups({ mentions }: { mentions: Mention[] }) {
   );
 }
 
+// ─── Market Summary Bar ───────────────────────────────────────────────────────
+
+function MarketSummaryBar() {
+  const { data } = useQuery<MarketSummary>({
+    queryKey: ['market-summary'],
+    queryFn: getMarketSummary,
+    staleTime: 5 * 60_000,
+  });
+
+  if (!data || data.total === 0) return null;
+
+  const bullPct = Math.round((data.bullish / data.total) * 100);
+  const bearPct = Math.round((data.bearish / data.total) * 100);
+  const neutPct = 100 - bullPct - bearPct;
+  const dominant = bullPct > bearPct ? 'bullish' : bearPct > bullPct ? 'bearish' : 'mixed';
+  const domColor = dominant === 'bullish' ? '#16a34a' : dominant === 'bearish' ? '#dc2626' : '#d97706';
+
+  return (
+    <div
+      className="border-b py-3 mb-0"
+      style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-surface)' }}
+    >
+      <div className="flex items-center gap-4 flex-wrap">
+        {/* Label */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: domColor }} />
+          <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
+            Market Mood
+          </span>
+        </div>
+
+        {/* Distribution bar */}
+        <div className="flex h-1.5 flex-1 min-w-[80px] max-w-[200px] overflow-hidden gap-px">
+          <div className="h-full" style={{ width: `${bullPct}%`, backgroundColor: '#16a34a' }} />
+          <div className="h-full" style={{ width: `${neutPct}%`, backgroundColor: '#d97706' }} />
+          <div className="h-full" style={{ width: `${bearPct}%`, backgroundColor: '#dc2626' }} />
+        </div>
+
+        {/* Stats */}
+        <div className="flex items-center gap-3 text-[9px] flex-wrap" style={MONO}>
+          <span style={{ color: '#16a34a' }}>▲ {bullPct}% Bull</span>
+          <span style={{ color: '#d97706' }}>{neutPct}% Neutral</span>
+          <span style={{ color: '#dc2626' }}>▼ {bearPct}% Bear</span>
+          <span style={{ color: 'var(--text-muted)' }}>{data.total} stocks</span>
+        </div>
+
+        {/* Top movers */}
+        {(data.top_bullish.length > 0 || data.top_bearish.length > 0) && (
+          <div className="flex items-center gap-2 ml-auto text-[9px] flex-wrap" style={MONO}>
+            {data.top_bullish.slice(0, 3).map(t => (
+              <span key={t} style={{ color: '#16a34a' }}>↑{t}</span>
+            ))}
+            {data.top_bearish.slice(0, 3).map(t => (
+              <span key={t} style={{ color: '#dc2626' }}>↓{t}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Feed Skeleton ────────────────────────────────────────────────────────────
 
 function FeedSkeleton() {
@@ -1085,8 +1185,11 @@ const SINCE_OPTIONS: { label: string; value: FeedSince }[] = [
   { label: '7D',  value: '7d'  },
 ];
 
+type FeedView = 'grouped' | 'latest';
+
 function NewsFeed({ minCredibility = 0, personalized = false }: { minCredibility?: number; personalized?: boolean }) {
   const [since, setSince]           = useState<FeedSince>('7d');
+  const [viewMode, setViewMode]     = useState<FeedView>('grouped');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const qc = useQueryClient();
 
@@ -1128,8 +1231,11 @@ function NewsFeed({ minCredibility = 0, personalized = false }: { minCredibility
 
   return (
     <div>
+      {/* Market summary bar */}
+      {!personalized && <MarketSummaryBar />}
+
       {/* Section header row */}
-      <div className="mb-0">
+      <div className="mb-0 mt-4">
         <SectionHeader
           title={personalized ? 'Your Feed' : 'Latest Intelligence'}
           meta={undefined}
@@ -1152,6 +1258,27 @@ function NewsFeed({ minCredibility = 0, personalized = false }: { minCredibility
                   }}
                 >
                   {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* View mode toggle */}
+          {!personalized && (
+            <div className="flex border" style={{ borderColor: 'var(--border)' }}>
+              {(['grouped', 'latest'] as FeedView[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className="px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-widest transition-colors"
+                  style={{
+                    ...MONO,
+                    backgroundColor: viewMode === mode ? 'var(--accent)' : 'transparent',
+                    color:           viewMode === mode ? '#fff' : 'var(--text-muted)',
+                    borderRight:     mode === 'grouped' ? '1px solid var(--border)' : 'none',
+                  }}
+                >
+                  {mode === 'grouped' ? 'By Stock' : 'Latest'}
                 </button>
               ))}
             </div>
@@ -1217,14 +1344,36 @@ function NewsFeed({ minCredibility = 0, personalized = false }: { minCredibility
           </motion.div>
           <MarketPulse />
           <EarningsWidget />
-          {/* Top Stories divider */}
-          <div className="pt-6 mb-0">
-            <SectionHeader
-              title="Top Stories"
-              meta={`${filtered.length - 1} articles`}
-            />
-          </div>
-          <TickerGroups mentions={filtered.slice(1)} />
+          {viewMode === 'grouped' ? (
+            <>
+              {/* Top Stories divider */}
+              <div className="pt-6 mb-0">
+                <SectionHeader
+                  title="Top Stories"
+                  meta={`${filtered.length - 1} articles`}
+                />
+              </div>
+              <TickerGroups mentions={filtered.slice(1)} />
+            </>
+          ) : (
+            <>
+              <div className="pt-6 mb-0">
+                <SectionHeader
+                  title="Latest"
+                  meta={`${filtered.length - 1} articles`}
+                />
+              </div>
+              <motion.div
+                variants={feedVariants}
+                initial="hidden"
+                animate="show"
+              >
+                {filtered.slice(1).map((mention, i) => (
+                  <StreamCard key={mention.id ?? i} mention={mention} />
+                ))}
+              </motion.div>
+            </>
+          )}
         </>
       )}
     </div>
@@ -1240,12 +1389,12 @@ function SidebarSkeleton() {
         <div
           key={i}
           className="flex items-center gap-3 py-3 border-b animate-pulse"
-          style={{ borderColor: 'rgba(255,255,255,0.15)' }}
+          style={{ borderColor: 'rgba(0,0,0,0.15)' }}
         >
-          <div className="h-6 w-6 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
+          <div className="h-6 w-6 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.12)' }} />
           <div className="flex-1 space-y-1.5">
-            <div className="h-2.5 w-16 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.1)' }} />
-            <div className="h-2 w-24 rounded" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }} />
+            <div className="h-2.5 w-16 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.12)' }} />
+            <div className="h-2 w-24 rounded" style={{ backgroundColor: 'rgba(0,0,0,0.08)' }} />
           </div>
         </div>
       ))}
@@ -1411,7 +1560,7 @@ function MoversSidebar() {
                     className="text-[11px] font-bold tabular-nums"
                     style={{ color: up ? 'var(--accent)' : 'var(--red)', ...MONO }}
                   >
-                    {up ? '▲' : '▼'} {Math.abs(delta * 100).toFixed(0)}
+                    {up ? '▲' : '▼'} {Math.abs(delta * 100).toFixed(0)}%
                   </span>
                 </div>
               </div>
