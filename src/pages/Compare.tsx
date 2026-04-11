@@ -194,10 +194,10 @@ export function Compare() {
 
   // Recharts data
   const sentimentChartData = hasData
-    ? data.map((r) => ({ ticker: r.ticker, score: r.avg_sentiment, ...r }))
+    ? data.map((r) => ({ ...r, score: r.avg_sentiment }))
     : [];
   const mentionChartData = hasData
-    ? data.map((r) => ({ ticker: r.ticker, mentions: r.mention_count, ...r }))
+    ? data.map((r) => ({ ...r, mentions: r.mention_count }))
     : [];
 
   return (

@@ -95,13 +95,15 @@ export function Portfolio() {
     return map;
   }, [portfolio, priceQueries]);
 
-  // Build enriched positions with computed fields
-  const positions: (PortfolioItem & {
+  type EnrichedPosition = Omit<PortfolioItem, 'current_price' | 'market_value' | 'gain_loss' | 'gain_loss_pct'> & {
     current_price: number | null;
     market_value: number | null;
     gain_loss: number | null;
     gain_loss_pct: number | null;
-  })[] = (portfolio ?? []).map((item) => {
+  };
+
+  // Build enriched positions with computed fields
+  const positions: EnrichedPosition[] = (portfolio ?? []).map((item): EnrichedPosition => {
     const priceData = priceByTicker[item.ticker]?.data;
     const current_price = priceData?.price ?? null;
     const market_value = current_price !== null ? item.shares * current_price : null;

@@ -79,6 +79,52 @@ def register_request():
     return resp
 
 
+@auth_bp.route("/register/verify", methods=["POST"])
+def register_verify():
+    data = request.get_json() or {}
+    token = data.get("token") or ""
+    otp_input = (data.get("otp") or "").strip()
+
+    if not token or not otp_input:
+        return jsonify(error="Token and verification code are required"), 400
+
+    try:
+        payload_str = _otp_serializer().loads(token, salt=_OTP_SALT, max_age=_OTP_MAX_AGE)
+    except SignatureExpired:
+        return jsonify(error="Verification code expired. Please register again."), 400
+    except BadSignature:
+        return jsonify(error="Invalid token."), 400
+
+    try:
+        payload = json.loads(payload_str)
+    except Exception:
+        return jsonify(error="Invalid token."), 400
+
+    if payload.get("otp") != otp_input:
+        return jsonify(error="Incorrect verification code. Please try again."), 400
+
+    email    = payload["email"]
+    username = payload.get("username")
+    pw_hash  = payload["pw_hash"]
+
+    # Guard against race conditions
+    if User.query.filter_by(email=email).first():
+        return jsonify(error="Email already registered"), 409
+    if username and User.query.filter_by(username=username).first():
+        return jsonify(error="Username already taken"), 409
+
+    user = User(email=email, password_hash=pw_hash, username=username)
+    db.session.add(user)
+    db.session.commit()
+
+    send_welcome_email(email, username or "")
+
+    jwt_token = create_access_token(identity=str(user.id))
+    resp = make_response(jsonify(**_user_dict(user)), 201)
+    set_access_cookies(resp, jwt_token)
+    return resp
+
+
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json() or {}
