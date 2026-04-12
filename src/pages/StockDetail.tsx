@@ -1248,10 +1248,12 @@ export function StockDetail() {
                       <Tooltip
                         contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}
                         labelStyle={{ color: 'var(--text-muted)' }}
-                        formatter={(value: number | null, name: string) => {
-                          if (value === null || value === undefined) return ['—', name];
-                          if (name === 'Price') return [`$${(value as number).toFixed(2)}`, name];
-                          return [`${(value as number) > 0 ? '+' : ''}${(value as number).toFixed(3)}`, name];
+                        formatter={(value, name) => {
+                          const v = value as number | null | undefined;
+                          const n = (name ?? '') as string;
+                          if (v === null || v === undefined) return ['—', n];
+                          if (n === 'Price') return [`$${v.toFixed(2)}`, n];
+                          return [`${v > 0 ? '+' : ''}${v.toFixed(3)}`, n];
                         }}
                       />
                       <Legend

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { login, forgotPassword, registerRequest } from '../api/auth';
-import { login, register, forgotPassword, registerRequest } from '../api/auth';
 import { useAuth } from '../store/useAuth';
 import WelcomeScreen from '../components/WelcomeScreen';
 
@@ -48,11 +47,9 @@ export function Auth() {
       }
       if (mode === 'register') {
         const res = await registerRequest(email, password, username || undefined);
-        // Backend creates account directly and returns user data
         if ('email' in res) {
           setAuth(res.email, res.username, res.is_admin);
           setProfile({ first_name: res.first_name, last_name: res.last_name, bio: res.bio, avatar_url: res.avatar_url, is_admin: res.is_admin });
-          // Clear visit flag so the onboarding banner shows after registration
           try { localStorage.removeItem('ss_visited'); } catch { /* ignore */ }
           setWelcomeUsername(username || email.split('@')[0]);
           setShowWelcome(true);
@@ -69,9 +66,6 @@ export function Auth() {
       setLoading(false);
     }
   }
-
-  // Keep register import used (suppress unused warning)
-  void register;
 
   return (
     <motion.div
@@ -175,7 +169,6 @@ export function Auth() {
               </p>
             )}
 
-            {/* Dev mode: show reset link directly when email isn't configured */}
             {devToken && (
               <div className="border p-3 space-y-1" style={{ borderColor: 'var(--border)' }}>
                 <p className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
@@ -208,7 +201,6 @@ export function Auth() {
             </motion.button>
           </form>
 
-          {/* Forgot password link */}
           {mode === 'login' && (
             <button
               onClick={() => { setMode('forgot'); setError(''); setSuccess(''); setDevToken(''); }}
@@ -249,149 +241,6 @@ export function Auth() {
             </button>
           )}
         </motion.div>
-              key="main-form"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-            >
-              {/* Form */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)', ...MONO }}>
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="w-full border px-3 py-2.5 text-sm bg-transparent outline-none transition-colors focus:border-[var(--accent)]"
-                    style={{ borderColor: 'var(--border)', color: 'var(--text-primary)', ...MONO }}
-                  />
-                </div>
-
-                {mode === 'register' && (
-                  <div>
-                    <label className="block text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)', ...MONO }}>
-                      Username <span style={{ color: 'var(--text-muted)' }}>(optional, min. 3 chars)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="@handle"
-                      autoComplete="username"
-                      className="w-full border px-3 py-2.5 text-sm bg-transparent outline-none transition-colors focus:border-[var(--accent)]"
-                      style={{ borderColor: 'var(--border)', color: 'var(--text-primary)', ...MONO }}
-                    />
-                  </div>
-                )}
-
-                {mode !== 'forgot' && (
-                  <div>
-                    <label className="block text-[9px] font-black uppercase tracking-widest mb-1.5" style={{ color: 'var(--text-muted)', ...MONO }}>
-                      Password {mode === 'register' && <span style={{ color: 'var(--text-muted)' }}>(min. 8 chars)</span>}
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••"
-                      className="w-full border px-3 py-2.5 text-sm bg-transparent outline-none transition-colors focus:border-[var(--accent)]"
-                      style={{ borderColor: 'var(--border)', color: 'var(--text-primary)', ...MONO }}
-                    />
-                  </div>
-                )}
-
-                {error && (
-                  <p className="text-[11px] py-2 px-3 border" style={{ color: 'var(--red)', borderColor: 'var(--red)', ...MONO }}>
-                    {error}
-                  </p>
-                )}
-
-                {success && (
-                  <p className="text-[11px] py-2 px-3 border" style={{ color: 'var(--accent)', borderColor: 'var(--accent)', ...MONO }}>
-                    {success}
-                  </p>
-                )}
-
-                {/* Dev mode: show reset link directly when email isn't configured */}
-                {devToken && (
-                  <div className="border p-3 space-y-1" style={{ borderColor: 'var(--border)' }}>
-                    <p className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
-                      Dev mode — email not configured. Use this link:
-                    </p>
-                    <Link
-                      to={`/reset-password?token=${devToken}`}
-                      className="text-[10px] break-all underline"
-                      style={{ color: 'var(--accent)', ...MONO }}
-                    >
-                      Reset password →
-                    </Link>
-                  </div>
-                )}
-
-                <motion.button
-                  type="submit"
-                  disabled={loading}
-                  whileTap={{ scale: 0.97 }}
-                  className="w-full py-3 text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50"
-                  style={{ backgroundColor: 'var(--accent)', color: 'var(--bg-page)', ...MONO }}
-                >
-                  {loading
-                    ? 'Please wait...'
-                    : mode === 'login'
-                    ? 'Sign In'
-                    : mode === 'register'
-                    ? 'Create Account'
-                    : 'Send Reset Link'}
-                </motion.button>
-              </form>
-
-              {/* Forgot password link */}
-              {mode === 'login' && (
-                <button
-                  onClick={() => { setMode('forgot'); setError(''); setSuccess(''); setDevToken(''); }}
-                  className="mt-5 w-full text-center text-[10px] transition-colors hover:text-[var(--accent)]"
-                  style={{ color: 'var(--text-muted)', ...MONO }}
-                >
-                  Forgot password?
-                </button>
-              )}
-
-              {mode === 'forgot' && (
-                <button
-                  onClick={() => { setMode('login'); setError(''); setSuccess(''); setDevToken(''); }}
-                  className="mt-5 w-full text-center text-[10px] transition-colors hover:text-[var(--accent)]"
-                  style={{ color: 'var(--text-muted)', ...MONO }}
-                >
-                  ← Back to Sign In
-                </button>
-              )}
-
-              {mode === 'login' && (
-                <button
-                  onClick={() => { setMode('register'); setError(''); setSuccess(''); }}
-                  className="mt-3 w-full text-center text-[10px] transition-colors hover:text-[var(--accent)]"
-                  style={{ color: 'var(--text-muted)', ...MONO }}
-                >
-                  No account? Create one →
-                </button>
-              )}
-
-              {mode === 'register' && (
-                <button
-                  onClick={() => { setMode('login'); setError(''); setSuccess(''); setUsername(''); }}
-                  className="mt-3 w-full text-center text-[10px] transition-colors hover:text-[var(--accent)]"
-                  style={{ color: 'var(--text-muted)', ...MONO }}
-                >
-                  Already have an account? Sign in →
-                </button>
-              )}
-            </motion.div>
       </div>
 
       {showWelcome && (
