@@ -61,8 +61,10 @@ export function Auth() {
         return;
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? 'Something went wrong. Please try again.');
+      const e = err as { response?: { data?: { error?: string } | string }; message?: string };
+      const data = e?.response?.data;
+      const msg = typeof data === 'object' ? data?.error : undefined;
+      setError(msg ?? (e?.message?.includes('Network') ? 'Could not reach server. Check your connection.' : 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }
