@@ -8,8 +8,23 @@ export interface AuthUser {
   last_name:   string | null;
   bio:         string | null;
   avatar_url:  string | null;
+  is_admin:    boolean;
   created_at:  string;
 }
+
+export interface AdminUser {
+  id:         number;
+  email:      string;
+  username:   string | null;
+  is_admin:   boolean;
+  created_at: string;
+}
+
+export const adminListUsers = () =>
+  client.get<AdminUser[]>('/api/auth/admin/users').then(r => r.data);
+
+export const adminDeleteUser = (uid: number) =>
+  client.delete(`/api/auth/admin/users/${uid}`).then(r => r.data);
 
 export interface AuthResponse extends AuthUser {
   token: string;

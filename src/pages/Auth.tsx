@@ -41,8 +41,8 @@ export function Auth() {
       }
       if (mode === 'login') {
         const result = await login(email, password);
-        setAuth(result.email, result.username);
-        setProfile({ first_name: result.first_name, last_name: result.last_name, bio: result.bio, avatar_url: result.avatar_url });
+        setAuth(result.email, result.username, result.is_admin);
+        setProfile({ first_name: result.first_name, last_name: result.last_name, bio: result.bio, avatar_url: result.avatar_url, is_admin: result.is_admin });
         navigate('/app');
         return;
       }
@@ -50,8 +50,8 @@ export function Auth() {
         const res = await registerRequest(email, password, username || undefined);
         // Backend creates account directly and returns user data
         if ('email' in res) {
-          setAuth(res.email, res.username);
-          setProfile({ first_name: res.first_name, last_name: res.last_name, bio: res.bio, avatar_url: res.avatar_url });
+          setAuth(res.email, res.username, res.is_admin);
+          setProfile({ first_name: res.first_name, last_name: res.last_name, bio: res.bio, avatar_url: res.avatar_url, is_admin: res.is_admin });
           // Clear visit flag so the onboarding banner shows after registration
           try { localStorage.removeItem('ss_visited'); } catch { /* ignore */ }
           setWelcomeUsername(username || email.split('@')[0]);

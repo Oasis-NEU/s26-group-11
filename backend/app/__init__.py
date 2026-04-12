@@ -24,7 +24,7 @@ def create_app():
     app.config["JWT_COOKIE_SECURE"]     = is_prod
     app.config["JWT_COOKIE_SAMESITE"]   = "None" if is_prod else "Lax"
     app.config["JWT_COOKIE_CSRF_PROTECT"] = False
-    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=8)
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=30)
 
     # Allow both local dev and the deployed Vercel frontend
     allowed_origins = ["http://localhost:5173"]

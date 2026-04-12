@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-from app.db.models import Thread, Comment, ThreadVote, CommentVote
+from app.db.models import Thread, Comment, ThreadVote, CommentVote, User
 from app.extensions import db
 
 discuss_bp = Blueprint("discuss", __name__)
@@ -212,8 +212,10 @@ def edit_thread(tid: int):
 @discuss_bp.route("/threads/<int:tid>", methods=["DELETE"])
 @jwt_required()
 def delete_thread(tid: int):
+    uid = int(get_jwt_identity())
     t = db.get_or_404(Thread, tid)
-    if t.user_id != int(get_jwt_identity()):
+    caller = db.session.get(User, uid)
+    if t.user_id != uid and not (caller and caller.is_admin):
         return jsonify({"error": "Not authorised"}), 403
     db.session.delete(t)
     db.session.commit()
@@ -272,8 +274,10 @@ def add_comment(tid: int):
 @discuss_bp.route("/comments/<int:cid>", methods=["DELETE"])
 @jwt_required()
 def delete_comment(cid: int):
+    uid = int(get_jwt_identity())
     c = db.get_or_404(Comment, cid)
-    if c.user_id != int(get_jwt_identity()):
+    caller = db.session.get(User, uid)
+    if c.user_id != uid and not (caller and caller.is_admin):
         return jsonify({"error": "Not authorised"}), 403
     db.session.delete(c)
     db.session.commit()
