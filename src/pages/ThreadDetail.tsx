@@ -38,10 +38,11 @@ function formatCountdown(ms: number) {
 
 // ── Comment Row ───────────────────────────────────────────────────────────────
 
-function CommentRow({ comment, currentUsername, currentEmail, isLoggedIn }: {
+function CommentRow({ comment, currentUsername, currentEmail, isAdmin, isLoggedIn }: {
   comment: Comment;
   currentUsername: string | null;
   currentEmail: string | null;
+  isAdmin: boolean;
   isLoggedIn: boolean;
 }) {
   const qc = useQueryClient();
@@ -125,12 +126,12 @@ function CommentRow({ comment, currentUsername, currentEmail, isLoggedIn }: {
               onVote={(dir) => castVote(dir)}
               disabled={!isLoggedIn}
             />
-            {isOwn && (
+            {(isOwn || isAdmin) && (
               <button
                 onClick={() => remove()}
                 className="p-1 transition-colors hover:text-[var(--red)]"
-                style={{ color: 'var(--text-muted)' }}
-                title="Delete comment"
+                style={{ color: isAdmin && !isOwn ? 'var(--red)' : 'var(--text-muted)' }}
+                title={isAdmin && !isOwn ? 'Admin delete' : 'Delete comment'}
               >
                 <Trash2 className="h-3 w-3" />
               </button>
@@ -213,7 +214,7 @@ export function ThreadDetail() {
   const { id } = useParams<{ id: string }>();
   const threadId = Number(id);
   const qc = useQueryClient();
-  const { email, username: currentUsername, isLoggedIn } = useAuth();
+  const { email, username: currentUsername, is_admin: isAdmin, isLoggedIn } = useAuth();
   const { toast } = useToast();
 
   const { data: thread, isLoading, isError } = useQuery({
@@ -506,6 +507,7 @@ export function ThreadDetail() {
                   comment={c}
                   currentUsername={currentUsername}
                   currentEmail={email}
+                  isAdmin={isAdmin}
                   isLoggedIn={isLoggedIn()}
                 />
               ))}

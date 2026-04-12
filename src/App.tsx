@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTheme } from './store/useTheme';
 import { usePreferences, applyPreferences } from './store/usePreferences';
+import { useAuth } from './store/useAuth';
+import { getMe } from './api/auth';
 import { landingVariants } from './components/PageTransition';
 
 const Layout        = lazy(() => import('./components/Layout/Layout').then(m => ({ default: m.Layout })));
@@ -24,6 +26,33 @@ const Alerts        = lazy(() => import('./pages/Alerts').then(m => ({ default: 
 const Screener      = lazy(() => import('./pages/Screener').then(m => ({ default: m.Screener })));
 const Heatmap       = lazy(() => import('./pages/Heatmap').then(m => ({ default: m.Heatmap })));
 const ActivityFeed  = lazy(() => import('./pages/ActivityFeed').then(m => ({ default: m.ActivityFeed })));
+
+// Validates the JWT cookie on every page load/refresh. If the server says
+// the session is gone, clear local auth state immediately so the user doesn't
+// bounce around in a broken half-logged-in state.
+function AuthInit() {
+  const { isLoggedIn, setProfile, logout } = useAuth();
+  useEffect(() => {
+    if (!isLoggedIn()) return;
+    getMe()
+      .then(user => {
+        setProfile({
+          username:   user.username,
+          first_name: user.first_name,
+          last_name:  user.last_name,
+          bio:        user.bio,
+          avatar_url: user.avatar_url,
+          is_admin:   user.is_admin,
+        });
+      })
+      .catch(() => {
+        // Cookie expired or revoked — clear local state silently.
+        // The 401 interceptor in client.ts will handle the redirect if needed.
+        logout();
+      });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
 
 function ThemeSync() {
   const theme = useTheme(s => s.theme);
@@ -101,6 +130,7 @@ function AnimatedRoutes() {
 function App() {
   return (
     <>
+      <AuthInit />
       <ThemeSync />
       <PreferencesSync />
       <BrowserRouter>

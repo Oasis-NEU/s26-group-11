@@ -41,6 +41,7 @@ def _user_dict(user):
         "last_name":   user.last_name,
         "bio":         user.bio,
         "avatar_url":  user.avatar_url,
+        "is_admin":    bool(user.is_admin),
         "created_at":  _iso(user.created_at),
     }
 
@@ -287,3 +288,62 @@ def reset_password():
     db.session.commit()
 
     return jsonify(message="Password updated. You can now sign in."), 200
+
+
+# ── Admin endpoints ───────────────────────────────────────────────────────────
+
+def _require_admin():
+    """Returns the current user if they are an admin, else raises 403."""
+    uid = int(get_jwt_identity())
+    user = db.session.get(User, uid)
+    if not user or not user.is_admin:
+        return None, (jsonify(error="Admin access required"), 403)
+    return user, None
+
+
+@auth_bp.route("/admin/users", methods=["GET"])
+@jwt_required()
+def admin_list_users():
+    _, err = _require_admin()
+    if err:
+        return err
+    users = User.query.order_by(User.created_at.desc()).all()
+    return jsonify([{
+        "id":         u.id,
+        "email":      u.email,
+        "username":   u.username,
+        "is_admin":   bool(u.is_admin),
+        "created_at": _iso(u.created_at),
+    } for u in users])
+
+
+@auth_bp.route("/admin/users/<int:uid>", methods=["DELETE"])
+@jwt_required()
+def admin_delete_user(uid: int):
+    admin, err = _require_admin()
+    if err:
+        return err
+    if admin.id == uid:
+        return jsonify(error="Cannot delete your own account"), 400
+    user = db.session.get(User, uid)
+    if not user:
+        return jsonify(error="User not found"), 404
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify(ok=True)
+
+
+@auth_bp.route("/admin/promote", methods=["POST"])
+def admin_promote():
+    """One-shot endpoint: promote an email to admin using the INTERNAL_API_KEY."""
+    data = request.get_json() or {}
+    key = data.get("key") or ""
+    email = (data.get("email") or "").strip().lower()
+    if key != config.INTERNAL_API_KEY:
+        return jsonify(error="Invalid key"), 403
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify(error="User not found"), 404
+    user.is_admin = True
+    db.session.commit()
+    return jsonify(ok=True, email=user.email)

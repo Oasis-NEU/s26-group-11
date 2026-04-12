@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useToast } from '../store/useToast';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Check, Eye, EyeOff, AlignCenter, AlignJustify, Sun, Moon, Camera, Trash2, Bell, Activity } from 'lucide-react';
-import { getMe, updateProfile } from '../api/auth';
+import { Check, Eye, EyeOff, AlignCenter, AlignJustify, Sun, Moon, Camera, Trash2, Bell, Shield, Users } from 'lucide-react';
+import { getMe, updateProfile, adminListUsers, adminDeleteUser, type AdminUser } from '../api/auth';
 import { useAuth } from '../store/useAuth';
 import { getFollowers, getFollowing } from '../api/users';
 import { usePreferences, applyPreferences } from '../store/usePreferences';
@@ -78,9 +78,10 @@ const SECTIONS = [
 export function Profile() {
   const navigate    = useNavigate();
   const { email, username: storedUsername, first_name: storedFirstName, last_name: storedLastName,
-          bio: storedBio, avatar_url: storedAvatar, setProfile, logout, isLoggedIn } = useAuth();
+          bio: storedBio, avatar_url: storedAvatar, is_admin: isAdmin, setProfile, logout, isLoggedIn } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prefs       = usePreferences();
+  const qc          = useQueryClient();
   const { theme, toggleTheme } = useTheme();
 
   const loggedIn = isLoggedIn();
@@ -94,6 +95,22 @@ export function Profile() {
     queryKey: ['me'],
     queryFn: getMe,
     enabled: loggedIn,
+  });
+
+  const { data: adminUsers, isLoading: adminUsersLoading } = useQuery<AdminUser[]>({
+    queryKey: ['admin-users'],
+    queryFn: adminListUsers,
+    enabled: loggedIn && isAdmin,
+    staleTime: 30_000,
+  });
+
+  const { mutate: deleteUser } = useMutation({
+    mutationFn: (uid: number) => adminDeleteUser(uid),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      toast('User deleted', 'success');
+    },
+    onError: () => toast('Failed to delete user', 'error'),
   });
 
   const myId = me?.id ?? null;
@@ -138,6 +155,7 @@ export function Profile() {
     mutationFn: () => updateProfile({ first_name: firstName.trim(), last_name: lastName.trim(), bio: bio.trim() }),
     onSuccess: (data) => {
       setProfile({ first_name: data.first_name, last_name: data.last_name, bio: data.bio });
+      qc.invalidateQueries({ queryKey: ['me'] });
       setInfoMsg('Profile updated!');
       setTimeout(() => setInfoMsg(''), 3000);
       toast('Profile updated!', 'success');
@@ -199,6 +217,7 @@ export function Profile() {
     mutationFn: () => updateProfile({ username: newUsername.trim() }),
     onSuccess: (data) => {
       setProfile({ username: data.username });
+      qc.invalidateQueries({ queryKey: ['me'] });
       setNewUsername('');
       setUsernameMsg('Username updated!');
       setTimeout(() => setUsernameMsg(''), 3000);
@@ -580,6 +599,60 @@ export function Profile() {
           <span className="text-[10px] font-bold uppercase tracking-widest">Price Alerts</span>
         </Link>
       </Section>
+
+      {/* ── Admin Panel ────────────────────────────────────────────────────── */}
+      {isAdmin && (
+        <Section title="Admin Panel">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield size={13} style={{ color: 'var(--accent)' }} />
+            <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: 'var(--accent)', ...MONO }}>
+              Admin Access
+            </span>
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <Users size={12} style={{ color: 'var(--text-muted)' }} />
+            <span className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
+              {adminUsers ? `${adminUsers.length} users` : 'Loading…'}
+            </span>
+          </div>
+          {adminUsersLoading && (
+            <p className="text-[10px]" style={{ color: 'var(--text-muted)', ...MONO }}>Loading users…</p>
+          )}
+          {adminUsers && (
+            <div className="space-y-1 max-h-80 overflow-y-auto scrollbar-none">
+              {adminUsers.map(u => (
+                <div
+                  key={u.id}
+                  className="flex items-center justify-between px-3 py-2 border"
+                  style={{ borderColor: 'var(--border)', backgroundColor: 'var(--bg-elevated)' }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold truncate" style={{ color: 'var(--text-primary)', ...MONO }}>
+                      {u.username ? `@${u.username}` : '—'}
+                      {u.is_admin && (
+                        <span className="ml-1.5 text-[9px] uppercase tracking-widest px-1 py-px" style={{ color: 'var(--accent)', border: '1px solid var(--accent)' }}>admin</span>
+                      )}
+                    </p>
+                    <p className="text-[9px] truncate" style={{ color: 'var(--text-muted)', ...MONO }}>{u.email}</p>
+                  </div>
+                  {!u.is_admin && (
+                    <button
+                      onClick={() => {
+                        if (confirm(`Delete ${u.email}?`)) deleteUser(u.id);
+                      }}
+                      className="ml-3 p-1 shrink-0 transition-colors hover:text-[var(--red)]"
+                      style={{ color: 'var(--text-muted)' }}
+                      title="Delete user"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
 
       {/* ── Session ────────────────────────────────────────────────────────── */}
       <Section title="Session">

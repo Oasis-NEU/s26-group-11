@@ -30,6 +30,7 @@ class User(db.Model):
     bio           = db.Column(db.Text, nullable=True)
     avatar_url    = db.Column(db.Text, nullable=True)
     password_hash = db.Column(db.String(255), nullable=False)
+    is_admin      = db.Column(db.Boolean, nullable=False, default=False)
     created_at    = db.Column(db.DateTime, nullable=False,
                               default=lambda: datetime.now(timezone.utc))
     watchlist     = db.relationship("WatchlistItem", back_populates="user", lazy="dynamic")

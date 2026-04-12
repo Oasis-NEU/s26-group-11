@@ -11,7 +11,8 @@ interface AuthState {
   last_name:  string | null;
   bio:        string | null;
   avatar_url: string | null;
-  setAuth: (email: string, username?: string | null) => void;
+  is_admin:   boolean;
+  setAuth: (email: string, username?: string | null, is_admin?: boolean) => void;
   setUsername: (username: string | null) => void;
   setProfile: (patch: {
     username?:   string | null;
@@ -19,6 +20,7 @@ interface AuthState {
     last_name?:  string | null;
     bio?:        string | null;
     avatar_url?: string | null;
+    is_admin?:   boolean;
   }) => void;
   logout: () => Promise<void>;
   isLoggedIn: () => boolean;
@@ -33,7 +35,8 @@ export const useAuth = create<AuthState>()(
       last_name:  null,
       bio:        null,
       avatar_url: null,
-      setAuth: (email, username = null) => set({ email, username }),
+      is_admin:   false,
+      setAuth: (email, username = null, is_admin = false) => set({ email, username, is_admin }),
       setUsername: (username) => set({ username }),
       setProfile: (patch) => set(patch),
       logout: async () => {
@@ -42,13 +45,13 @@ export const useAuth = create<AuthState>()(
         } catch {
           // Already expired or network error — still clear local state
         }
-        set({ email: null, username: null, first_name: null, last_name: null, bio: null, avatar_url: null });
+        set({ email: null, username: null, first_name: null, last_name: null, bio: null, avatar_url: null, is_admin: false });
       },
       isLoggedIn: () => !!get().email,
     }),
     {
-      // Bumped to v5 — added avatar_url field
-      name: 'ss-auth-v5',
+      // Bumped to v6 — added is_admin field
+      name: 'ss-auth-v6',
     }
   )
 );

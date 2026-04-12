@@ -224,9 +224,10 @@ function NewThreadForm({ defaultTicker, onClose }: { defaultTicker?: string; onC
 
 // ── Thread Card ───────────────────────────────────────────────────────────────
 
-function ThreadCard({ thread, currentUsername, isLoggedIn }: {
+function ThreadCard({ thread, currentUsername, isAdmin, isLoggedIn }: {
   thread: Thread;
   currentUsername: string | null;
+  isAdmin: boolean;
   isLoggedIn: boolean;
 }) {
   const qc = useQueryClient();
@@ -315,11 +316,12 @@ function ThreadCard({ thread, currentUsername, isLoggedIn }: {
               (edited)
             </span>
           )}
-          {currentUsername && currentUsername === thread.username && (
+          {currentUsername && (isAdmin || currentUsername === thread.username) && (
             <button
               onClick={() => remove()}
               className="ml-auto text-[9px] font-bold uppercase tracking-widest transition-colors hover:text-[var(--red)]"
-              style={{ color: 'var(--text-muted)', ...MONO }}
+              style={{ color: isAdmin && currentUsername !== thread.username ? 'var(--red)' : 'var(--text-muted)', ...MONO }}
+              title={isAdmin && currentUsername !== thread.username ? 'Admin delete' : 'Delete'}
             >
               Delete
             </button>
@@ -393,7 +395,7 @@ export function Discuss() {
   const [search, setSearch]       = useState('');
   const [page, setPage]           = useState(0);
   const [allThreads, setAllThreads] = useState<Thread[]>([]);
-  const { isLoggedIn, username: currentUsername } = useAuth();
+  const { isLoggedIn, username: currentUsername, is_admin: isAdmin } = useAuth();
 
   const tickerFilter    = searchParams.get('ticker')?.toUpperCase() || undefined;
   const debouncedSearch = useDebounce(search, 300);
@@ -551,6 +553,7 @@ export function Discuss() {
               key={t.id}
               thread={t}
               currentUsername={currentUsername}
+              isAdmin={isAdmin}
               isLoggedIn={isLoggedIn()}
             />
           ))}
