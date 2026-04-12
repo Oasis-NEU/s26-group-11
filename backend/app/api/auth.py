@@ -71,7 +71,10 @@ def register_request():
     db.session.add(user)
     db.session.commit()
 
-    send_welcome_email(email, username or "")
+    try:
+        send_welcome_email(email, username or "")
+    except Exception:
+        pass  # non-fatal
 
     jwt_token = create_access_token(identity=str(user.id))
     resp = make_response(jsonify(**_user_dict(user)), 201)
@@ -117,7 +120,10 @@ def register_verify():
     db.session.add(user)
     db.session.commit()
 
-    send_welcome_email(email, username or "")
+    try:
+        send_welcome_email(email, username or "")
+    except Exception:
+        pass  # non-fatal
 
     jwt_token = create_access_token(identity=str(user.id))
     resp = make_response(jsonify(**_user_dict(user)), 201)

@@ -131,22 +131,20 @@ function PriceChange({ pct }: { pct: number | null }) {
 function SectionHeader({ title, meta, accent = false }: { title: string; meta?: string; accent?: boolean }) {
   return (
     <div
-      className="flex items-center justify-between pb-3 mb-0"
+      className="flex items-center gap-3 pb-3 mb-0"
       style={{
         borderBottom: accent ? '4px solid var(--accent)' : '2px solid var(--text-primary)',
       }}
     >
-      <div className="flex items-center gap-2">
-        {accent && (
-          <span style={{ color: 'var(--accent)', fontSize: '10px', lineHeight: 1 }}>■</span>
-        )}
-        <h2
-          className="text-[10px] font-black uppercase tracking-widest"
-          style={{ color: 'var(--text-primary)', ...MONO }}
-        >
-          {title}
-        </h2>
-      </div>
+      {accent && (
+        <span style={{ color: 'var(--accent)', fontSize: '10px', lineHeight: 1 }}>■</span>
+      )}
+      <h2
+        className="text-[10px] font-black uppercase tracking-widest"
+        style={{ color: 'var(--text-primary)', ...MONO }}
+      >
+        {title}
+      </h2>
       {meta && (
         <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
           {meta}
@@ -1111,37 +1109,66 @@ function EarningsWidget() {
         <Calendar className="h-3.5 w-3.5" style={{ color: 'var(--accent)' }} />
         <SectionHeader title="Earnings Calendar" meta="Upcoming" />
       </div>
-      <motion.div variants={staggerContainer} initial="hidden" animate="show">
+      <motion.div variants={staggerContainer} initial="hidden" animate="show" className="space-y-2">
         {upcoming.map(e => {
           const date      = new Date(e.date + 'T00:00:00Z');
           const nowUtc    = new Date();
           const daysUntil = Math.ceil((date.getTime() - nowUtc.setUTCHours(0,0,0,0)) / 86_400_000);
-          const urgentColor = daysUntil <= 2 ? 'var(--red)' : daysUntil <= 5 ? '#d97706' : 'var(--text-muted)';
-          const label = daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `in ${daysUntil}d`;
+          const isToday   = daysUntil === 0;
+          const isTomorrow = daysUntil === 1;
+          const urgentColor = isToday ? 'var(--red)' : isTomorrow ? '#d97706' : daysUntil <= 7 ? 'var(--accent)' : 'var(--text-muted)';
+          const label = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : `${daysUntil}d`;
+          // Progress bar: how far into a 30-day window
+          const barPct = Math.max(0, Math.min(100, 100 - (daysUntil / 30) * 100));
+
           return (
             <motion.div
               key={e.ticker}
               variants={staggerItem}
-              whileHover={{ x: 3, transition: { duration: 0.12 } }}
-              className="flex items-center gap-4 py-2.5 border-b last:border-0"
-              style={{ borderColor: 'var(--border)' }}
+              whileHover={{ x: 2, transition: { duration: 0.1 } }}
             >
               <Link
                 to={`/app/stock/${e.ticker}`}
-                className="text-[11px] font-black uppercase tracking-widest w-16 transition-colors hover:text-[var(--accent)]"
-                style={{ color: 'var(--accent)', ...MONO }}
+                className="flex items-center gap-3 px-3 py-2.5 group transition-colors"
+                style={{
+                  borderLeft: `3px solid ${urgentColor}`,
+                  backgroundColor: `${urgentColor}08`,
+                  border: `1px solid var(--border)`,
+                  borderLeftWidth: '3px',
+                  borderLeftColor: urgentColor,
+                }}
               >
-                {e.ticker}
+                {/* Ticker */}
+                <span
+                  className="text-sm font-black w-14 shrink-0 group-hover:text-[var(--accent)] transition-colors"
+                  style={{ color: 'var(--text-primary)', ...MONO }}
+                >
+                  {e.ticker}
+                </span>
+
+                {/* Date */}
+                <span className="text-[11px] flex-1" style={{ color: 'var(--text-secondary)', ...MONO }}>
+                  {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                </span>
+
+                {/* Proximity bar */}
+                <div className="hidden sm:flex items-center gap-2 w-20">
+                  <div className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-elevated)' }}>
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${barPct}%`, backgroundColor: urgentColor, opacity: 0.7 }}
+                    />
+                  </div>
+                </div>
+
+                {/* Label */}
+                <span
+                  className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 shrink-0"
+                  style={{ color: urgentColor, backgroundColor: `${urgentColor}18`, ...MONO }}
+                >
+                  {label}
+                </span>
               </Link>
-              <span className="text-[11px] flex-1" style={{ color: 'var(--text-secondary)', ...MONO }}>
-                {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' })}
-              </span>
-              <span
-                className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5"
-                style={{ color: urgentColor, backgroundColor: `${urgentColor}18`, ...MONO }}
-              >
-                {label}
-              </span>
             </motion.div>
           );
         })}
