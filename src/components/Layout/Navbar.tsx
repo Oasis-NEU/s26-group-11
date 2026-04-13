@@ -74,8 +74,8 @@ export function Navbar() {
           {/* Brand */}
           <Link
             to="/"
-            className="shrink-0 font-bold tracking-tight"
-            style={{ color: 'var(--text-primary)', fontFamily: '"IBM Plex Mono", monospace', fontSize: '0.8rem', letterSpacing: '0.12em' }}
+            className="shrink-0 font-black uppercase"
+            style={{ color: 'var(--text-primary)', fontFamily: '"IBM Plex Mono", monospace', fontSize: '0.875rem', letterSpacing: '0.22em' }}
           >
             SentimentSignal
           </Link>
@@ -96,7 +96,7 @@ export function Navbar() {
                   <Link
                     key={path}
                     to={path}
-                    className="relative px-3 py-1 text-[13px] font-medium transition-colors"
+                    className="relative px-3 py-1 text-[11px] font-bold uppercase tracking-widest transition-colors"
                     style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}
                   >
                     {label}
@@ -116,7 +116,7 @@ export function Navbar() {
               <div ref={extrasRef} className="relative">
                 <button
                   onClick={() => setExtrasOpen((v) => !v)}
-                  className="relative flex items-center gap-0.5 px-3 py-1 text-[13px] font-medium transition-colors"
+                  className="relative flex items-center gap-0.5 px-3 py-1 text-[11px] font-bold uppercase tracking-widest transition-colors"
                   style={{
                     color: EXTRAS_NAV.some(({ path }) => location.pathname.startsWith(path))
                       ? 'var(--text-primary)'
@@ -150,8 +150,8 @@ export function Navbar() {
                           <Link
                             key={path}
                             to={path}
-                            className="block px-4 py-2 text-[13px] font-medium transition-colors hover:text-[var(--accent)]"
-                            style={{ color: active ? 'var(--accent)' : 'var(--text-muted)' }}
+                            className="block px-4 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors hover:text-[var(--accent)]"
+                            style={{ color: active ? 'var(--accent)' : 'var(--text-muted)', fontFamily: '"IBM Plex Mono", monospace' }}
                           >
                             {label}
                           </Link>
@@ -183,7 +183,7 @@ export function Navbar() {
                 title="Profile & Settings"
               >
                 <Avatar name={username ?? '?'} avatarUrl={avatar_url} size={22} />
-                <span className="text-[12px] font-medium hidden sm:block truncate max-w-[80px]">
+                <span className="text-[9px] font-bold uppercase tracking-widest hidden sm:block truncate max-w-[80px]" style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
                   {username ?? 'Profile'}
                 </span>
                 <Settings size={13} />
@@ -191,8 +191,8 @@ export function Navbar() {
             ) : (
               <Link
                 to="/auth"
-                className="text-[12px] font-semibold border px-3 py-1.5 transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)' }}
+                className="text-[9px] font-bold uppercase tracking-widest border px-2.5 py-1 transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', fontFamily: '"IBM Plex Mono", monospace' }}
               >
                 Sign in
               </Link>
@@ -252,7 +252,7 @@ export function Navbar() {
                       key={path}
                       to={path}
                       onClick={closeMenu}
-                      className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium transition-colors"
+                      className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors"
                       style={{
                         color: active ? 'var(--accent)' : 'var(--text-secondary)',
                         borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
@@ -266,7 +266,7 @@ export function Navbar() {
                   <Link
                     to="/app/profile"
                     onClick={closeMenu}
-                    className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium transition-colors"
+                    className="flex items-center gap-2 px-3 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors"
                     style={{
                       color: location.pathname === '/app/profile' ? 'var(--accent)' : 'var(--text-secondary)',
                       borderLeft: location.pathname === '/app/profile' ? '2px solid var(--accent)' : '2px solid transparent',

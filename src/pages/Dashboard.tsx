@@ -132,22 +132,22 @@ function PriceChange({ pct }: { pct: number | null }) {
 function SectionHeader({ title, meta, accent = false }: { title: string; meta?: string; accent?: boolean }) {
   return (
     <div
-      className="flex items-center gap-3 pb-2.5 mb-0"
+      className="flex items-center gap-3 pb-3 mb-0"
       style={{
-        borderBottom: accent ? '2px solid var(--accent)' : '1.5px solid var(--border-strong)',
+        borderBottom: accent ? '4px solid var(--accent)' : '2px solid var(--text-primary)',
       }}
     >
       {accent && (
-        <span style={{ color: 'var(--accent)', fontSize: '8px', lineHeight: 1 }}>■</span>
+        <span style={{ color: 'var(--accent)', fontSize: '10px', lineHeight: 1 }}>■</span>
       )}
       <h2
-        className="text-[11px] font-semibold uppercase tracking-wider"
-        style={{ color: 'var(--text-secondary)' }}
+        className="text-[10px] font-black uppercase tracking-widest"
+        style={{ color: 'var(--text-primary)', ...MONO }}
       >
         {title}
       </h2>
       {meta && (
-        <span className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+        <span className="text-[9px] uppercase tracking-widest" style={{ color: 'var(--text-muted)', ...MONO }}>
           {meta}
         </span>
       )}
