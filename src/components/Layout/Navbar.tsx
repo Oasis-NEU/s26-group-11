@@ -45,12 +45,12 @@ export function Navbar() {
     { label: 'Discuss',   path: '/app/discuss' },
     { label: 'Watchlist', path: '/app/watchlists' },
     { label: 'Portfolio', path: '/app/portfolio' },
-    { label: 'Screener',  path: '/app/screener' },
-    { label: 'Activity',  path: '/app/activity' },
   ];
 
   // Extra tools — hidden behind "More ▾" on desktop
   const EXTRAS_NAV = [
+    { label: 'Screener',     path: '/app/screener' },
+    { label: 'Activity',     path: '/app/activity' },
     { label: 'Compare',      path: '/app/compare' },
     { label: 'Heatmap',      path: '/app/heatmap' },
     { label: 'Alerts',       path: '/app/alerts' },
