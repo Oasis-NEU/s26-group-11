@@ -42,8 +42,10 @@
   body {
     background-color: var(--bg-page);
     color: var(--text-primary);
-    font-family: "Syne", system-ui, sans-serif;
+    font-family: "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-size: 14px;
     min-height: 100vh;
   }
 }
